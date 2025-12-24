@@ -43,7 +43,7 @@ function createWindow() {
         y: bounds.y,
         show: false,
         frame: false,
-        backgroundColor: '#0d1117',
+        backgroundColor: '#1e1e1e',
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             nodeIntegration: false,
