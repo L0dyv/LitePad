@@ -5,12 +5,10 @@
     background: var(--bg-primary);
 }
 
-/* 标签栏 */
+/* 标签栏容器 */
 .app-header {
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
-    -webkit-app-region: drag;
-    /* 允许拖拽窗口 */
 }
 
 /* 编辑区域 */
@@ -33,24 +31,24 @@
 .app-footer {
     display: flex;
     justify-content: space-between;
-    padding: 6px 16px;
+    padding: 4px 12px;
     background: var(--bg-secondary);
     border-top: 1px solid var(--border);
-    font-size: 12px;
+    font-size: 11px;
     color: var(--text-secondary);
 }
 
 .status {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .status::before {
     content: '';
     width: 6px;
     height: 6px;
-    background: #4ade80;
+    background: var(--success);
     border-radius: 50%;
 }
 

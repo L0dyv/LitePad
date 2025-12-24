@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Editor } from './components/Editor'
 import { TabBar } from './components/TabBar'
-import { loadData, saveData, createTab, Tab, AppData } from './utils/storage'
+import { TitleBar } from './components/TitleBar'
+import { loadData, saveData, createTab, AppData } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -79,6 +80,7 @@ function App() {
 
     return (
         <div className="app">
+            <TitleBar />
             <header className="app-header">
                 <TabBar
                     tabs={data.tabs}

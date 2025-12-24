@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage } from 'electron'
+import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import { join } from 'path'
 import Store from 'electron-store'
 
@@ -33,8 +33,9 @@ function createWindow() {
         height: bounds.height,
         x: bounds.x,
         y: bounds.y,
-        show: false, // 初始不显示，等待 ready-to-show
-        frame: true,
+        show: false,
+        frame: false,
+        backgroundColor: '#0d1117',
         webPreferences: {
             preload: join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -157,6 +158,17 @@ app.whenReady().then(() => {
     createWindow()
     createTray()
     registerShortcuts()
+
+    // IPC 窗口控制
+    ipcMain.on('window-minimize', () => mainWindow?.minimize())
+    ipcMain.on('window-maximize', () => {
+        if (mainWindow?.isMaximized()) {
+            mainWindow.unmaximize()
+        } else {
+            mainWindow?.maximize()
+        }
+    })
+    ipcMain.on('window-close', () => mainWindow?.hide())
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {

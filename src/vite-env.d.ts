@@ -1,7 +1,10 @@
 /// <reference types="vite/client" />
 
 interface Window {
-    electronAPI: {
+    electronAPI?: {
         getVersion: () => string
+        minimize: () => void
+        maximize: () => void
+        close: () => void
     }
 }
