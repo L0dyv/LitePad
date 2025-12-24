@@ -4,15 +4,23 @@
 
 ## 文档结构
 
+```
+docs/
+├── README.md           # 本文件 - 文档索引
+├── roadmap.md          # 📍 总体路线图（阶段概览 + 技术栈）
+├── current.md          # 🔄 当前状态（进行中的工作、问题、TODO）
+├── changelog.md        # 📝 变更记录
+└── phases/             # 📁 各阶段详细文档
+    ├── 01-planning.md      # 阶段1：需求规划
+    ├── 02-foundation.md    # 阶段2：基础框架搭建
+    ├── 03-core-features.md # 阶段3：核心功能开发
+    └── 04-polish.md        # 阶段4：优化与完善
+```
+
+## 快速导航
+
 | 文档 | 说明 |
 |------|------|
-| [overview.md](./overview.md) | 项目总览：目标、技术栈、核心功能 |
-| [features.md](./features.md) | 功能需求详细说明 |
-| [architecture.md](./architecture.md) | 技术架构与实现方案 |
-| [changelog.md](./changelog.md) | 版本变更记录 |
-| [current-phase.md](./current-phase.md) | 当前开发阶段与进度 |
-
-## 快速链接
-
-- 项目根目录: `a:/CloudSync/Codes/MyIdeas/FlashPadSelf`
-- 启动开发: `npm run dev`（待实现）
+| [roadmap.md](./roadmap.md) | 查看项目总体规划和技术栈 |
+| [current.md](./current.md) | 查看当前进度和待办事项 |
+| [phases/](./phases/) | 浏览各阶段详细内容 |
