@@ -83,7 +83,6 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
 
                     // 在等号后插入结果
                     const insertPos = line.from + lastEqualIndex + 1
-                    const existingAfterEqual = lineText.substring(lastEqualIndex + 1)
 
                     // 替换等号后的内容
                     view.dispatch({
@@ -104,6 +103,8 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
         const startState = EditorState.create({
             doc: content,
             extensions: [
+                // 计算功能键盘映射放最前面，确保优先级
+                calculateKeymap,
                 lineNumbers(),
                 highlightActiveLineGutter(),
                 highlightActiveLine(),
@@ -114,7 +115,6 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
                     ...historyKeymap,
                     ...searchKeymap
                 ]),
-                calculateKeymap,
                 theme,
                 EditorView.updateListener.of((update) => {
                     if (update.docChanged && !isExternalUpdate.current) {
