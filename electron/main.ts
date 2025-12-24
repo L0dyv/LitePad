@@ -10,6 +10,10 @@ interface StoreSchema {
         width: number
         height: number
     }
+    settings: {
+        autoLaunch: boolean
+        alwaysOnTop: boolean
+    }
 }
 
 const store = new Store<StoreSchema>({
@@ -17,6 +21,10 @@ const store = new Store<StoreSchema>({
         windowBounds: {
             width: 800,
             height: 600
+        },
+        settings: {
+            autoLaunch: false,
+            alwaysOnTop: false
         }
     }
 })
@@ -159,6 +167,12 @@ app.whenReady().then(() => {
     createTray()
     registerShortcuts()
 
+    // 应用保存的设置
+    const settings = store.get('settings')
+    if (settings.alwaysOnTop && mainWindow) {
+        mainWindow.setAlwaysOnTop(true)
+    }
+
     // IPC 窗口控制
     ipcMain.on('window-minimize', () => mainWindow?.minimize())
     ipcMain.on('window-maximize', () => {
@@ -169,6 +183,24 @@ app.whenReady().then(() => {
         }
     })
     ipcMain.on('window-close', () => mainWindow?.hide())
+
+    // IPC 设置相关
+    ipcMain.handle('get-settings', () => {
+        return store.get('settings')
+    })
+
+    ipcMain.on('set-auto-launch', (_event, enabled: boolean) => {
+        app.setLoginItemSettings({
+            openAtLogin: enabled,
+            path: app.getPath('exe')
+        })
+        store.set('settings.autoLaunch', enabled)
+    })
+
+    ipcMain.on('set-always-on-top', (_event, enabled: boolean) => {
+        mainWindow?.setAlwaysOnTop(enabled)
+        store.set('settings.alwaysOnTop', enabled)
+    })
 
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
