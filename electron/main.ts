@@ -32,6 +32,7 @@ const store = new Store<StoreSchema>({
 // 保持对窗口和托盘的引用，防止被垃圾回收
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+let isQuitting = false
 
 function createWindow() {
     const bounds = store.get('windowBounds')
@@ -70,7 +71,7 @@ function createWindow() {
 
     // 阻止窗口关闭，改为隐藏（托盘常驻）
     mainWindow.on('close', (event) => {
-        if (!app.isQuitting) {
+        if (!isQuitting) {
             event.preventDefault()
             mainWindow?.hide()
         }
@@ -102,7 +103,7 @@ function createTray() {
         {
             label: '退出',
             click: () => {
-                app.isQuitting = true
+                isQuitting = true
                 app.quit()
             }
         }
@@ -155,12 +156,7 @@ function registerShortcuts() {
     }
 }
 
-// 扩展 app 类型
-declare module 'electron' {
-    interface App {
-        isQuitting?: boolean
-    }
-}
+
 
 app.whenReady().then(() => {
     createWindow()
