@@ -80,17 +80,27 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
                 try {
                     // 使用 mathjs 计算
                     const result = evaluate(expression)
+                    const resultStr = result.toString()
 
-                    // 在等号后插入结果
-                    const insertPos = line.from + lastEqualIndex + 1
+                    // 检查等号后是否有空格，保留空格
+                    const afterEqual = lineText.substring(lastEqualIndex + 1)
+                    const leadingSpaces = afterEqual.match(/^(\s*)/)?.[1] || ''
 
-                    // 替换等号后的内容
+                    // 计算插入位置（等号后 + 空格后）
+                    const insertPos = line.from + lastEqualIndex + 1 + leadingSpaces.length
+
+                    // 计算结果的最终位置
+                    const newCursorPos = insertPos + resultStr.length
+
+                    // 替换等号后的内容（保留空格）
                     view.dispatch({
                         changes: {
                             from: insertPos,
                             to: line.to,
-                            insert: result.toString()
-                        }
+                            insert: resultStr
+                        },
+                        // 将光标移到结果末尾
+                        selection: { anchor: newCursorPos }
                     })
                     return true
                 } catch {
