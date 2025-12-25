@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS } from '../utils/storage'
+import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import './Settings.css'
 
 interface SettingsProps {
@@ -33,10 +35,12 @@ function eventToShortcut(e: KeyboardEvent): string | null {
 }
 
 export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) {
+    const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [recording, setRecording] = useState<keyof ShortcutSettings | null>(null)
+    const [currentLang, setCurrentLang] = useState(() => getCurrentLanguage())
 
     useEffect(() => {
         // 获取当前设置
@@ -46,6 +50,8 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         })
         // 加载快捷键配置
         setShortcuts(loadShortcuts())
+        // 获取当前语言
+        setCurrentLang(getCurrentLanguage())
     }, [isOpen])
 
     // 录制快捷键
@@ -91,6 +97,11 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         window.electronAPI?.setAlwaysOnTop(checked)
     }
 
+    const handleLanguageChange = (lang: string) => {
+        setCurrentLang(lang)
+        changeLanguage(lang)
+    }
+
     const handleResetShortcut = useCallback((key: keyof ShortcutSettings) => {
         const newShortcuts = { ...shortcuts, [key]: DEFAULT_SHORTCUTS[key] }
         setShortcuts(newShortcuts)
@@ -108,14 +119,25 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         <div className="settings-overlay" onClick={onClose}>
             <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
                 <div className="settings-header">
-                    <h2>设置</h2>
+                    <h2>{t('settings.title')}</h2>
                     <button className="settings-close" onClick={onClose}>×</button>
                 </div>
                 <div className="settings-content">
                     <div className="settings-section">
-                        <h3>常规</h3>
+                        <h3>{t('settings.general')}</h3>
                         <label className="settings-item">
-                            <span>开机自启动</span>
+                            <span>{t('settings.language')}</span>
+                            <select
+                                value={currentLang}
+                                onChange={(e) => handleLanguageChange(e.target.value)}
+                                className="settings-select"
+                            >
+                                <option value="zh">{t('languages.zh')}</option>
+                                <option value="en">{t('languages.en')}</option>
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.autoLaunch')}</span>
                             <input
                                 type="checkbox"
                                 checked={autoLaunch}
@@ -123,7 +145,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
                             />
                         </label>
                         <label className="settings-item">
-                            <span>窗口置顶</span>
+                            <span>{t('settings.alwaysOnTop')}</span>
                             <input
                                 type="checkbox"
                                 checked={alwaysOnTop}
@@ -132,69 +154,69 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
                         </label>
                     </div>
                     <div className="settings-section">
-                        <h3>快捷键</h3>
-                        <p className="settings-hint">固定快捷键（不可更改）</p>
+                        <h3>{t('settings.shortcuts')}</h3>
+                        <p className="settings-hint">{t('settings.fixedShortcuts')}</p>
                         <div className="settings-item readonly">
-                            <span>显示/隐藏窗口</span>
+                            <span>{t('settings.showHideWindow')}</span>
                             <kbd>Alt + X</kbd>
                         </div>
                         <div className="settings-item readonly">
-                            <span>计算表达式</span>
+                            <span>{t('settings.calculate')}</span>
                             <kbd>Ctrl + Enter</kbd>
                         </div>
                         <div className="settings-item readonly">
-                            <span>切换标签页</span>
+                            <span>{t('settings.switchTab')}</span>
                             <kbd>Ctrl + Tab</kbd>
                         </div>
                         <div className="settings-item readonly">
-                            <span>跳转到标签页</span>
+                            <span>{t('settings.jumpToTab')}</span>
                             <kbd>Ctrl + 1~9</kbd>
                         </div>
 
-                        <p className="settings-hint custom">自定义快捷键（点击修改）</p>
+                        <p className="settings-hint custom">{t('settings.customShortcuts')}</p>
                         <div className="settings-item editable">
-                            <span>新建标签页</span>
+                            <span>{t('settings.newTab')}</span>
                             <div className="shortcut-input">
                                 <kbd
                                     className={recording === 'newTab' ? 'recording' : ''}
                                     onClick={() => startRecording('newTab')}
                                 >
-                                    {recording === 'newTab' ? '按下快捷键...' : shortcuts.newTab}
+                                    {recording === 'newTab' ? t('settings.pressShortcut') : shortcuts.newTab}
                                 </kbd>
                                 {shortcuts.newTab !== DEFAULT_SHORTCUTS.newTab && (
                                     <button
                                         className="reset-btn"
                                         onClick={() => handleResetShortcut('newTab')}
-                                        title="恢复默认"
+                                        title={t('settings.resetDefault')}
                                     >↺</button>
                                 )}
                             </div>
                         </div>
                         <div className="settings-item editable">
-                            <span>关闭标签页</span>
+                            <span>{t('settings.closeTab')}</span>
                             <div className="shortcut-input">
                                 <kbd
                                     className={recording === 'closeTab' ? 'recording' : ''}
                                     onClick={() => startRecording('closeTab')}
                                 >
-                                    {recording === 'closeTab' ? '按下快捷键...' : shortcuts.closeTab}
+                                    {recording === 'closeTab' ? t('settings.pressShortcut') : shortcuts.closeTab}
                                 </kbd>
                                 {shortcuts.closeTab !== DEFAULT_SHORTCUTS.closeTab && (
                                     <button
                                         className="reset-btn"
                                         onClick={() => handleResetShortcut('closeTab')}
-                                        title="恢复默认"
+                                        title={t('settings.resetDefault')}
                                     >↺</button>
                                 )}
                             </div>
                         </div>
                     </div>
                     <div className="settings-section">
-                        <h3>关于</h3>
+                        <h3>{t('settings.about')}</h3>
                         <div className="settings-about">
-                            <p><strong>LitePad速记本</strong></p>
-                            <p>版本 0.1.0</p>
-                            <p className="text-muted">一个快速、本地的速效记事本</p>
+                            <p><strong>{t('app.title')}</strong></p>
+                            <p>{t('settings.version')} 0.1.0</p>
+                            <p className="text-muted">{t('app.description')}</p>
                         </div>
                     </div>
                 </div>
@@ -202,4 +224,3 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         </div>
     )
 }
-

@@ -121,7 +121,8 @@ export function loadData(): AppData {
     }
 
     // 默认数据：一个空白标签页
-    const defaultTab = createTab('默认页')
+    // 注意：这里使用固定值，实际显示由 i18n 控制
+    const defaultTab = createTab()
     return {
         tabs: [defaultTab],
         activeTabId: defaultTab.id
@@ -138,10 +139,11 @@ export function saveData(data: AppData): void {
 }
 
 // 创建新标签页
-export function createTab(title: string = '新建页'): Tab {
+// 注意：title 参数可由调用方传入翻译后的文本
+export function createTab(title?: string): Tab {
     return {
         id: uuidv4(),
-        title,
+        title: title || 'New Page',
         content: '',
         createdAt: Date.now(),
         updatedAt: Date.now()

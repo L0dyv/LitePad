@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Editor } from './components/Editor'
 import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
@@ -8,6 +9,7 @@ import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings
 import './styles/App.css'
 
 function App() {
+    const { t } = useTranslation()
     const [data, setData] = useState<AppData>(() => loadData())
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
@@ -50,12 +52,12 @@ function App() {
 
     // 添加标签页
     const handleTabAdd = useCallback(() => {
-        const newTab = createTab()
+        const newTab = createTab(t('tabBar.newPage'))
         setData(prev => ({
             tabs: [...prev.tabs, newTab],
             activeTabId: newTab.id
         }))
-    }, [])
+    }, [t])
 
     // 切换到下一个标签页
     const handleNextTab = useCallback(() => {

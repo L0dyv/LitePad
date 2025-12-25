@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { ContextMenu, MenuItem } from './ContextMenu'
 import { StatusBarSettings, saveStatusBar } from '../utils/storage'
 import './StatusBar.css'
@@ -11,6 +12,7 @@ interface StatusBarProps {
 }
 
 export function StatusBar({ lineCount, charCount, settings, onSettingsChange }: StatusBarProps) {
+    const { t } = useTranslation()
     const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number }>({
         visible: false,
         x: 0,
@@ -38,17 +40,17 @@ export function StatusBar({ lineCount, charCount, settings, onSettingsChange }: 
 
     const getContextMenuItems = (): MenuItem[] => [
         {
-            label: '显示快捷键提示',
+            label: t('statusBar.showShortcuts'),
             checked: settings.showShortcuts,
             onClick: () => toggleSetting('showShortcuts')
         },
         {
-            label: '显示行数',
+            label: t('statusBar.showLineCount'),
             checked: settings.showLineCount,
             onClick: () => toggleSetting('showLineCount')
         },
         {
-            label: '显示字符数',
+            label: t('statusBar.showCharCount'),
             checked: settings.showCharCount,
             onClick: () => toggleSetting('showCharCount')
         }
@@ -58,13 +60,13 @@ export function StatusBar({ lineCount, charCount, settings, onSettingsChange }: 
         <>
             <footer className="app-footer" onContextMenu={handleContextMenu}>
                 {settings.showShortcuts && (
-                    <span className="status">Ctrl+Tab 切换 | Ctrl+1~9 跳转 | Ctrl+Enter 计算</span>
+                    <span className="status">{t('statusBar.shortcutHint')}</span>
                 )}
                 <span className="status-spacer" />
                 <span className="char-count">
-                    {settings.showLineCount && `${lineCount} 行`}
+                    {settings.showLineCount && t('statusBar.lines', { count: lineCount })}
                     {settings.showLineCount && settings.showCharCount && ' | '}
-                    {settings.showCharCount && `${charCount} 字符`}
+                    {settings.showCharCount && t('statusBar.chars', { count: charCount })}
                 </span>
             </footer>
             {contextMenu.visible && (

@@ -1,0 +1,50 @@
+{
+    "app": {
+        "title": "LitePad速记本",
+        "description": "一个快速、本地的速效记事本"
+    },
+    "settings": {
+        "title": "设置",
+        "general": "常规",
+        "language": "语言",
+        "autoLaunch": "开机自启动",
+        "alwaysOnTop": "窗口置顶",
+        "shortcuts": "快捷键",
+        "fixedShortcuts": "固定快捷键（不可更改）",
+        "customShortcuts": "自定义快捷键（点击修改）",
+        "showHideWindow": "显示/隐藏窗口",
+        "calculate": "计算表达式",
+        "switchTab": "切换标签页",
+        "jumpToTab": "跳转到标签页",
+        "newTab": "新建标签页",
+        "closeTab": "关闭标签页",
+        "pressShortcut": "按下快捷键...",
+        "resetDefault": "恢复默认",
+        "about": "关于",
+        "version": "版本"
+    },
+    "statusBar": {
+        "showShortcuts": "显示快捷键提示",
+        "showLineCount": "显示行数",
+        "showCharCount": "显示字符数",
+        "lines": "{{count}} 行",
+        "chars": "{{count}} 字符",
+        "shortcutHint": "Ctrl+Tab 切换 | Ctrl+1~9 跳转 | Ctrl+Enter 计算"
+    },
+    "tabBar": {
+        "rename": "重命名",
+        "close": "关闭",
+        "closeRight": "关闭右侧标签页",
+        "closeOthers": "关闭其他标签页",
+        "defaultPage": "默认页",
+        "newPage": "新建页"
+    },
+    "titleBar": {
+        "switchToLight": "切换到亮色模式",
+        "switchToDark": "切换到暗色模式"
+    },
+    "languages": {
+        "zh": "简体中文",
+        "en": "English"
+    }
+}
