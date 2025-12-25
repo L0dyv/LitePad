@@ -17,9 +17,11 @@
         "@codemirror/state": "^6.5.3",
         "@codemirror/view": "^6.39.7",
         "electron-store": "^11.0.2",
+        "i18next": "^25.7.3",
         "mathjs": "^15.1.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
+        "react-i18next": "^16.5.0",
         "uuid": "^13.0.0"
     },
     "devDependencies": {

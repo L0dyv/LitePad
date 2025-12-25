@@ -171,8 +171,15 @@
 }
 
 @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.7; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
 }
 
 /* 快捷键输入容器 */
@@ -202,4 +209,25 @@
     background: var(--bg-hover);
     color: var(--text-primary);
     border-color: var(--text-secondary);
+}
+
+/* 语言选择下拉框 */
+.settings-select {
+    padding: 6px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 13px;
+    cursor: pointer;
+    outline: none;
+    min-width: 120px;
+}
+
+.settings-select:hover {
+    border-color: var(--text-secondary);
+}
+
+.settings-select:focus {
+    border-color: var(--accent);
 }

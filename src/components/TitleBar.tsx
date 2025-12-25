@@ -1,11 +1,9 @@
+import { useTranslation } from 'react-i18next'
 import { useTheme } from '../hooks/useTheme'
 import './TitleBar.css'
 
-interface TitleBarProps {
-    title?: string
-}
-
-export function TitleBar({ title = 'LitePad速记本' }: TitleBarProps) {
+export function TitleBar() {
+    const { t } = useTranslation()
     const { theme, toggleTheme } = useTheme()
 
     const handleMinimize = () => {
@@ -23,13 +21,13 @@ export function TitleBar({ title = 'LitePad速记本' }: TitleBarProps) {
     return (
         <div className="title-bar">
             <div className="title-bar-drag">
-                <span className="title-bar-title">{title}</span>
+                <span className="title-bar-title">{t('app.title')}</span>
             </div>
             <div className="title-bar-controls">
                 <button
                     className="title-bar-btn theme-toggle"
                     onClick={toggleTheme}
-                    title={theme === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}
+                    title={theme === 'dark' ? t('titleBar.switchToLight') : t('titleBar.switchToDark')}
                 >
                     {theme === 'dark' ? (
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

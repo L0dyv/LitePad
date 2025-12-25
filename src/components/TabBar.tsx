@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Tab } from '../utils/storage'
 import { ContextMenu, MenuItem } from './ContextMenu'
 import './TabBar.css'
@@ -20,6 +21,7 @@ interface ContextMenuState {
 }
 
 export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename }: TabBarProps) {
+    const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
     const [contextMenu, setContextMenu] = useState<ContextMenuState>({
@@ -96,7 +98,7 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
 
         const items: MenuItem[] = [
             {
-                label: '重命名',
+                label: t('tabBar.rename'),
                 onClick: () => {
                     setEditingId(tab.id)
                     setEditValue(tab.title)
@@ -106,14 +108,14 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
 
         if (tabs.length > 1) {
             items.push({
-                label: '关闭',
+                label: t('tabBar.close'),
                 onClick: () => onTabClose(tab.id)
             })
 
             // 关闭右侧标签页
             if (tabIndex < tabs.length - 1) {
                 items.push({
-                    label: '关闭右侧标签页',
+                    label: t('tabBar.closeRight'),
                     onClick: () => {
                         tabs.slice(tabIndex + 1).forEach(t => onTabClose(t.id))
                     }
@@ -122,7 +124,7 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
 
             // 关闭其他标签页
             items.push({
-                label: '关闭其他标签页',
+                label: t('tabBar.closeOthers'),
                 onClick: () => {
                     tabs.filter(t => t.id !== tab.id).forEach(t => onTabClose(t.id))
                 }
@@ -179,4 +181,3 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
         </>
     )
 }
-

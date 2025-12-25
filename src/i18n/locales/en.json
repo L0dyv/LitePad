@@ -1,0 +1,50 @@
+{
+    "app": {
+        "title": "LitePad",
+        "description": "A fast, local notepad for quick notes"
+    },
+    "settings": {
+        "title": "Settings",
+        "general": "General",
+        "language": "Language",
+        "autoLaunch": "Launch at startup",
+        "alwaysOnTop": "Always on top",
+        "shortcuts": "Shortcuts",
+        "fixedShortcuts": "Fixed shortcuts (cannot be changed)",
+        "customShortcuts": "Custom shortcuts (click to modify)",
+        "showHideWindow": "Show/Hide window",
+        "calculate": "Calculate expression",
+        "switchTab": "Switch tab",
+        "jumpToTab": "Jump to tab",
+        "newTab": "New tab",
+        "closeTab": "Close tab",
+        "pressShortcut": "Press shortcut...",
+        "resetDefault": "Reset to default",
+        "about": "About",
+        "version": "Version"
+    },
+    "statusBar": {
+        "showShortcuts": "Show shortcut hints",
+        "showLineCount": "Show line count",
+        "showCharCount": "Show character count",
+        "lines": "{{count}} lines",
+        "chars": "{{count}} chars",
+        "shortcutHint": "Ctrl+Tab Switch | Ctrl+1~9 Jump | Ctrl+Enter Calculate"
+    },
+    "tabBar": {
+        "rename": "Rename",
+        "close": "Close",
+        "closeRight": "Close tabs to the right",
+        "closeOthers": "Close other tabs",
+        "defaultPage": "Default",
+        "newPage": "New Page"
+    },
+    "titleBar": {
+        "switchToLight": "Switch to light mode",
+        "switchToDark": "Switch to dark mode"
+    },
+    "languages": {
+        "zh": "简体中文",
+        "en": "English"
+    }
+}
