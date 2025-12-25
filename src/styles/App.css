@@ -52,32 +52,3 @@
 .editor-container .cm-editor {
     height: 100%;
 }
-
-/* 状态栏 */
-.app-footer {
-    display: flex;
-    justify-content: space-between;
-    padding: 4px 12px;
-    background: var(--bg-secondary);
-    border-top: 1px solid var(--border);
-    font-size: 11px;
-    color: var(--text-secondary);
-}
-
-.status {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.status::before {
-    content: '';
-    width: 6px;
-    height: 6px;
-    background: var(--success);
-    border-radius: 50%;
-}
-
-.char-count {
-    color: var(--text-secondary);
-}
