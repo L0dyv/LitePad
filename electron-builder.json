@@ -1,6 +1,6 @@
 {
     "appId": "com.litepad.notebook",
-    "productName": "LitePad速记本",
+    "productName": "LitePad",
     "directories": {
         "output": "release"
     },
@@ -23,7 +23,7 @@
                 ]
             }
         ],
-        "icon": "assets/icon.ico"
+        "icon": "assets/LitePad_logo.png"
     },
     "nsis": {
         "oneClick": false,
@@ -31,9 +31,10 @@
         "allowToChangeInstallationDirectory": true,
         "createDesktopShortcut": true,
         "createStartMenuShortcut": true,
-        "shortcutName": "LitePad速记本"
+        "shortcutName": "LitePad速记本",
+        "artifactName": "LitePad-Setup-${version}.${ext}"
     },
     "portable": {
-        "artifactName": "${productName}-Portable-${version}.${ext}"
+        "artifactName": "LitePad-Portable-${version}.${ext}"
     }
 }

@@ -1,6 +1,19 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } from 'electron'
-import { join } from 'path'
+import { join, dirname } from 'path'
+import { existsSync, mkdirSync } from 'fs'
 import Store from 'electron-store'
+
+// Portable 模式：设置用户数据目录到程序目录的 data 文件夹
+const exePath = app.getPath('exe')
+const portableDataPath = join(dirname(exePath), 'data')
+
+// 确保 data 目录存在
+if (!existsSync(portableDataPath)) {
+    mkdirSync(portableDataPath, { recursive: true })
+}
+
+// 设置 Electron 用户数据目录（影响 localStorage 等）
+app.setPath('userData', portableDataPath)
 
 // 配置存储
 interface StoreSchema {
@@ -17,6 +30,7 @@ interface StoreSchema {
 }
 
 const store = new Store<StoreSchema>({
+    cwd: portableDataPath, // Portable 模式：配置文件存储在程序目录
     defaults: {
         windowBounds: {
             width: 800,
