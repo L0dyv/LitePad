@@ -48,6 +48,23 @@ let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
 let isQuitting = false
 
+// 单实例锁定：防止多开
+const gotTheLock = app.requestSingleInstanceLock()
+
+if (!gotTheLock) {
+    // 如果无法获取锁，说明已有实例在运行，直接退出
+    app.quit()
+} else {
+    // 当第二个实例尝试启动时，激活已有窗口
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore()
+            if (!mainWindow.isVisible()) mainWindow.show()
+            mainWindow.focus()
+        }
+    })
+}
+
 function createWindow() {
     const bounds = store.get('windowBounds')
 
