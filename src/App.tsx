@@ -3,12 +3,14 @@ import { Editor } from './components/Editor'
 import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut } from './utils/storage'
+import { StatusBar } from './components/StatusBar'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings } from './utils/storage'
 import './styles/App.css'
 
 function App() {
     const [data, setData] = useState<AppData>(() => loadData())
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
+    const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -187,10 +189,12 @@ function App() {
                     />
                 )}
             </main>
-            <footer className="app-footer">
-                <span className="status">Ctrl+Tab 切换 | Ctrl+1~9 跳转 | Ctrl+Enter 计算</span>
-                <span className="char-count">{lineCount} 行 | {charCount} 字符</span>
-            </footer>
+            <StatusBar
+                lineCount={lineCount}
+                charCount={charCount}
+                settings={statusBarSettings}
+                onSettingsChange={setStatusBarSettings}
+            />
             <Settings
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}

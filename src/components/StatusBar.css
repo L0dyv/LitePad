@@ -1,0 +1,32 @@
+.app-footer {
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--text-secondary);
+    user-select: none;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.status::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--success);
+    border-radius: 50%;
+}
+
+.status-spacer {
+    flex: 1;
+}
+
+.char-count {
+    color: var(--text-secondary);
+}

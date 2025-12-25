@@ -19,13 +19,28 @@ export interface ShortcutSettings {
     closeTab: string    // 关闭标签页
 }
 
+// 状态栏显示配置
+export interface StatusBarSettings {
+    showShortcuts: boolean  // 显示快捷键提示
+    showLineCount: boolean  // 显示行数
+    showCharCount: boolean  // 显示字符数
+}
+
 const STORAGE_KEY = 'flashpad-data'
 const SHORTCUTS_KEY = 'flashpad-shortcuts'
+const STATUSBAR_KEY = 'flashpad-statusbar'
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
     newTab: 'Ctrl+T',
     closeTab: 'Ctrl+W'
+}
+
+// 默认状态栏设置
+export const DEFAULT_STATUSBAR: StatusBarSettings = {
+    showShortcuts: true,
+    showLineCount: true,
+    showCharCount: true
 }
 
 // 加载快捷键配置
@@ -47,6 +62,28 @@ export function saveShortcuts(shortcuts: ShortcutSettings): void {
         localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts))
     } catch (e) {
         console.error('保存快捷键配置失败:', e)
+    }
+}
+
+// 加载状态栏配置
+export function loadStatusBar(): StatusBarSettings {
+    try {
+        const stored = localStorage.getItem(STATUSBAR_KEY)
+        if (stored) {
+            return { ...DEFAULT_STATUSBAR, ...JSON.parse(stored) }
+        }
+    } catch (e) {
+        console.error('加载状态栏配置失败:', e)
+    }
+    return { ...DEFAULT_STATUSBAR }
+}
+
+// 保存状态栏配置
+export function saveStatusBar(settings: StatusBarSettings): void {
+    try {
+        localStorage.setItem(STATUSBAR_KEY, JSON.stringify(settings))
+    } catch (e) {
+        console.error('保存状态栏配置失败:', e)
     }
 }
 
