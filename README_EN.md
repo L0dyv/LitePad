@@ -12,6 +12,8 @@ A scratchpad for quick notes. Hotkey to summon, use and go.
 - Window position and size memory
 - Custom shortcuts
 
+![LitePad Preview](assets/flashpad-reference.png)
+
 ## Development
 
 ```bash

@@ -12,6 +12,8 @@
 - 窗口位置和大小记忆
 - 自定义快捷键
 
+![LitePad 界面预览](assets/flashpad-reference.png)
+
 ## 开发
 
 ```bash
