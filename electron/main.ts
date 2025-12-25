@@ -99,12 +99,15 @@ function saveWindowBounds() {
 }
 
 function createTray() {
-    // 创建一个简单的图标（16x16 蓝色方块）
-    const iconSize = 16
-    const icon = nativeImage.createFromBuffer(
-        createSimpleIcon(iconSize),
-        { width: iconSize, height: iconSize }
-    )
+    // 使用真实图标
+    let iconPath = join(__dirname, '../dist/tray.png')
+
+    // 开发环境下路径处理
+    if (process.env.VITE_DEV_SERVER_URL) {
+        iconPath = join(process.cwd(), 'public/tray.png')
+    }
+
+    const icon = nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 })
 
     tray = new Tray(icon)
 
@@ -128,22 +131,6 @@ function createTray() {
 
     // 点击托盘图标切换窗口
     tray.on('click', () => toggleWindow())
-}
-
-// 创建一个简单的纯色图标
-function createSimpleIcon(size: number): Buffer {
-    // 创建 RGBA 数据
-    const data = Buffer.alloc(size * size * 4)
-
-    // 填充蓝紫色 (#e94560 转换为 RGB)
-    for (let i = 0; i < size * size; i++) {
-        data[i * 4] = 233     // R
-        data[i * 4 + 1] = 69  // G
-        data[i * 4 + 2] = 96  // B
-        data[i * 4 + 3] = 255 // A
-    }
-
-    return data
 }
 
 function toggleWindow() {
