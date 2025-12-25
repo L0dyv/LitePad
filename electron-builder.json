@@ -17,7 +17,7 @@
                 ]
             },
             {
-                "target": "portable",
+                "target": "dir",
                 "arch": [
                     "x64"
                 ]
@@ -33,8 +33,5 @@
         "createStartMenuShortcut": true,
         "shortcutName": "LitePad速记本",
         "artifactName": "LitePad-Setup-${version}.${ext}"
-    },
-    "portable": {
-        "artifactName": "LitePad-Portable-${version}.${ext}"
     }
 }
