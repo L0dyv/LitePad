@@ -4,7 +4,7 @@ interface TitleBarProps {
     title?: string
 }
 
-export function TitleBar({ title = 'FlashPad' }: TitleBarProps) {
+export function TitleBar({ title = 'LitePad速记本' }: TitleBarProps) {
     const handleMinimize = () => {
         window.electronAPI?.minimize()
     }

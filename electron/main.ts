@@ -109,7 +109,7 @@ function createTray() {
         }
     ])
 
-    tray.setToolTip('FlashPad Self - Alt+X 快速切换')
+    tray.setToolTip('LitePad速记本 - Alt+X 快速切换')
     tray.setContextMenu(contextMenu)
 
     // 点击托盘图标切换窗口

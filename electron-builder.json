@@ -1,6 +1,6 @@
 {
-    "appId": "com.flashpad.self",
-    "productName": "FlashPad Self",
+    "appId": "com.litepad.notebook",
+    "productName": "LitePad速记本",
     "directories": {
         "output": "release"
     },
@@ -31,7 +31,7 @@
         "allowToChangeInstallationDirectory": true,
         "createDesktopShortcut": true,
         "createStartMenuShortcut": true,
-        "shortcutName": "FlashPad Self"
+        "shortcutName": "LitePad速记本"
     },
     "portable": {
         "artifactName": "${productName}-Portable-${version}.${ext}"
