@@ -71,7 +71,7 @@ export function Settings({ isOpen, onClose }: SettingsProps) {
                     <div className="settings-section">
                         <h3>关于</h3>
                         <div className="settings-about">
-                            <p><strong>FlashPad Self</strong></p>
+                            <p><strong>LitePad速记本</strong></p>
                             <p>版本 0.1.0</p>
                             <p className="text-muted">一个快速、本地的速效记事本</p>
                         </div>

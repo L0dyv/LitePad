@@ -6,6 +6,22 @@
 
 ## [未发布]
 
+### 2024-12-25
+
+#### 🔄 项目更名
+
+- **FlashPad Self → LitePad速记本**
+  - 更新标题栏默认标题 (`TitleBar.tsx`)
+  - 更新设置页面关于信息 (`Settings.tsx`)
+  - 更新网页标题 (`index.html`)
+  - 更新托盘图标提示 (`main.ts`)
+  - 更新构建配置 (`electron-builder.json`)
+    - `appId`: `com.flashpad.self` → `com.litepad.notebook`
+    - `productName`: `FlashPad Self` → `LitePad速记本`
+    - `shortcutName`: `FlashPad Self` → `LitePad速记本`
+
+---
+
 ### 2024-12-24
 
 #### 📝 规划阶段启动

@@ -1,4 +1,6 @@
-# FlashPadSelf 项目文档
+# LitePad速记本 项目文档
+
+> 前身为 FlashPad Self，于 2024-12-25 更名
 
 一个快速、本地、高性能的速效记事本软件。
 
