@@ -3,11 +3,12 @@ import { Editor } from './components/Editor'
 import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
-import { loadData, saveData, createTab, AppData } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut } from './utils/storage'
 import './styles/App.css'
 
 function App() {
     const [data, setData] = useState<AppData>(() => loadData())
+    const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [showSettings, setShowSettings] = useState(false)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -35,7 +36,7 @@ function App() {
     }
 
     // 关闭标签页
-    const handleTabClose = (id: string) => {
+    const handleTabClose = useCallback((id: string) => {
         setData(prev => {
             const newTabs = prev.tabs.filter(t => t.id !== id)
             const newActiveId = prev.activeTabId === id
@@ -43,16 +44,93 @@ function App() {
                 : prev.activeTabId
             return { tabs: newTabs, activeTabId: newActiveId }
         })
-    }
+    }, [])
 
     // 添加标签页
-    const handleTabAdd = () => {
+    const handleTabAdd = useCallback(() => {
         const newTab = createTab()
         setData(prev => ({
             tabs: [...prev.tabs, newTab],
             activeTabId: newTab.id
         }))
-    }
+    }, [])
+
+    // 切换到下一个标签页
+    const handleNextTab = useCallback(() => {
+        setData(prev => {
+            const currentIndex = prev.tabs.findIndex(t => t.id === prev.activeTabId)
+            const nextIndex = (currentIndex + 1) % prev.tabs.length
+            return { ...prev, activeTabId: prev.tabs[nextIndex].id }
+        })
+    }, [])
+
+    // 切换到上一个标签页
+    const handlePrevTab = useCallback(() => {
+        setData(prev => {
+            const currentIndex = prev.tabs.findIndex(t => t.id === prev.activeTabId)
+            const prevIndex = (currentIndex - 1 + prev.tabs.length) % prev.tabs.length
+            return { ...prev, activeTabId: prev.tabs[prevIndex].id }
+        })
+    }, [])
+
+    // 切换到指定索引的标签页
+    const handleSwitchToTab = useCallback((index: number) => {
+        setData(prev => {
+            if (index >= 0 && index < prev.tabs.length) {
+                return { ...prev, activeTabId: prev.tabs[index].id }
+            }
+            return prev
+        })
+    }, [])
+
+    // 刷新快捷键配置
+    const refreshShortcuts = useCallback(() => {
+        setShortcuts(loadShortcuts())
+    }, [])
+
+    // 键盘快捷键
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // 自定义快捷键：新建标签页
+            if (matchShortcut(e, shortcuts.newTab)) {
+                e.preventDefault()
+                handleTabAdd()
+                return
+            }
+
+            // 自定义快捷键：关闭标签页
+            if (matchShortcut(e, shortcuts.closeTab)) {
+                e.preventDefault()
+                if (data.tabs.length > 1) {
+                    handleTabClose(data.activeTabId)
+                }
+                return
+            }
+
+            // 固定快捷键：Ctrl+Tab 切换到下一个标签页
+            if (e.ctrlKey && e.key === 'Tab') {
+                e.preventDefault()
+                if (e.shiftKey) {
+                    handlePrevTab()
+                } else {
+                    handleNextTab()
+                }
+                return
+            }
+
+            // 固定快捷键：Ctrl+1~9 切换到指定标签页
+            if (e.ctrlKey && !e.altKey && !e.shiftKey) {
+                const num = parseInt(e.key)
+                if (num >= 1 && num <= 9) {
+                    e.preventDefault()
+                    handleSwitchToTab(num - 1)
+                    return
+                }
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown)
+        return () => window.removeEventListener('keydown', handleKeyDown)
+    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleNextTab, handlePrevTab, handleSwitchToTab])
 
     // 重命名标签页
     const handleTabRename = (id: string, newTitle: string) => {
@@ -110,12 +188,17 @@ function App() {
                 )}
             </main>
             <footer className="app-footer">
-                <span className="status">就绪 | Ctrl+Enter 计算</span>
+                <span className="status">Ctrl+Tab 切换 | Ctrl+1~9 跳转 | Ctrl+Enter 计算</span>
                 <span className="char-count">{lineCount} 行 | {charCount} 字符</span>
             </footer>
-            <Settings isOpen={showSettings} onClose={() => setShowSettings(false)} />
+            <Settings
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                onShortcutsChange={refreshShortcuts}
+            />
         </div>
     )
 }
 
 export default App
+

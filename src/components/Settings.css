@@ -137,3 +137,69 @@
     color: var(--text-secondary);
     font-size: 12px !important;
 }
+
+/* 快捷键分类提示 */
+.settings-hint {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin: 12px 0 8px 0;
+    opacity: 0.7;
+}
+
+.settings-hint.custom {
+    margin-top: 16px;
+    color: var(--accent);
+    opacity: 1;
+}
+
+/* 可编辑的快捷键项 */
+.settings-item.editable kbd {
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.settings-item.editable kbd:hover {
+    background: var(--bg-hover);
+    border-color: var(--accent);
+}
+
+.settings-item.editable kbd.recording {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-color: var(--accent);
+    animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+/* 快捷键输入容器 */
+.shortcut-input {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reset-btn {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.reset-btn:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--text-secondary);
+}
