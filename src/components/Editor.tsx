@@ -3,6 +3,8 @@ import { EditorState } from '@codemirror/state'
 import { EditorView, keymap, highlightActiveLine, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
+import { markdown } from '@codemirror/lang-markdown'
+import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { evaluate } from 'mathjs'
 
 interface EditorProps {
@@ -115,6 +117,8 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
             extensions: [
                 // 计算功能键盘映射放最前面，确保优先级
                 calculateKeymap,
+                markdown(),
+                syntaxHighlighting(defaultHighlightStyle),
                 lineNumbers(),
                 highlightActiveLineGutter(),
                 highlightActiveLine(),
