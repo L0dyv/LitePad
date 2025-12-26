@@ -5,7 +5,7 @@ import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -15,6 +15,7 @@ function App() {
     const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
     const [currentFont, setCurrentFont] = useState(() => loadFont())
+    const [editorFont, setEditorFont] = useState(() => loadEditorFont())
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     // 应用字体设置
@@ -200,6 +201,7 @@ function App() {
                         key={activeTab.id}
                         content={activeTab.content}
                         onChange={handleContentChange}
+                        font={editorFont}
                         autoFocus
                     />
                 )}
@@ -215,6 +217,7 @@ function App() {
                 onClose={() => setShowSettings(false)}
                 onShortcutsChange={refreshShortcuts}
                 onFontChange={setCurrentFont}
+                onEditorFontChange={setEditorFont}
             />
         </div>
     )

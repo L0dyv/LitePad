@@ -30,6 +30,7 @@ const STORAGE_KEY = 'flashpad-data'
 const SHORTCUTS_KEY = 'flashpad-shortcuts'
 const STATUSBAR_KEY = 'flashpad-statusbar'
 const FONT_KEY = 'flashpad-font'
+const EDITOR_FONT_KEY = 'flashpad-editor-font'
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
@@ -66,6 +67,31 @@ export function saveFont(font: string): void {
         localStorage.setItem(FONT_KEY, font)
     } catch (e) {
         console.error('保存字体设置失败:', e)
+    }
+}
+
+// 默认编辑器字体
+export const DEFAULT_EDITOR_FONT = 'Consolas'
+
+// 加载编辑器字体设置
+export function loadEditorFont(): string {
+    try {
+        const stored = localStorage.getItem(EDITOR_FONT_KEY)
+        if (stored) {
+            return stored
+        }
+    } catch (e) {
+        console.error('加载编辑器字体设置失败:', e)
+    }
+    return DEFAULT_EDITOR_FONT
+}
+
+// 保存编辑器字体设置
+export function saveEditorFont(font: string): void {
+    try {
+        localStorage.setItem(EDITOR_FONT_KEY, font)
+    } catch (e) {
+        console.error('保存编辑器字体设置失败:', e)
     }
 }
 
