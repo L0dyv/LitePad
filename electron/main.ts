@@ -155,9 +155,14 @@ function toggleWindow() {
     if (!mainWindow) return
 
     if (mainWindow.isVisible()) {
+        // 先设置透明再隐藏，跳过系统动画
+        mainWindow.setOpacity(0)
         mainWindow.hide()
     } else {
+        // 先透明显示再恢复不透明，跳过系统动画
+        mainWindow.setOpacity(0)
         mainWindow.show()
+        mainWindow.setOpacity(1)
         mainWindow.focus()
     }
 }

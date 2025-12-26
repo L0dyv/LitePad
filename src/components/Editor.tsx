@@ -10,10 +10,11 @@ import { evaluate } from 'mathjs'
 interface EditorProps {
     content: string
     onChange: (content: string) => void
+    font?: string
     autoFocus?: boolean
 }
 
-export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
+export function Editor({ content, onChange, font = 'Consolas', autoFocus = false }: EditorProps) {
     const editorRef = useRef<HTMLDivElement>(null)
     const viewRef = useRef<EditorView | null>(null)
     const isExternalUpdate = useRef(false)
@@ -30,7 +31,7 @@ export function Editor({ content, onChange, autoFocus = false }: EditorProps) {
                 color: 'var(--text-primary)'
             },
             '.cm-content': {
-                fontFamily: "'Consolas', 'Monaco', monospace",
+                fontFamily: `'${font}', 'Monaco', monospace`,
                 padding: '16px 20px',
                 caretColor: 'var(--accent)'
             },

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont } from '../utils/storage'
+import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import packageJson from '../../package.json'
 import './Settings.css'
@@ -10,6 +10,7 @@ interface SettingsProps {
     onClose: () => void
     onShortcutsChange?: () => void
     onFontChange?: (font: string) => void
+    onEditorFontChange?: (font: string) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -36,7 +37,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -44,6 +45,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
     const [recording, setRecording] = useState<keyof ShortcutSettings | null>(null)
     const [currentLang, setCurrentLang] = useState(() => getCurrentLanguage())
     const [currentFont, setCurrentFont] = useState(() => loadFont())
+    const [currentEditorFont, setCurrentEditorFont] = useState(() => loadEditorFont())
     const [systemFonts, setSystemFonts] = useState<string[]>([
         'SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'
     ])
@@ -61,6 +63,8 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
         setCurrentLang(getCurrentLanguage())
         // 获取当前字体
         setCurrentFont(loadFont())
+        // 获取当前编辑器字体
+        setCurrentEditorFont(loadEditorFont())
         // 获取系统字体列表
         window.electronAPI?.getSystemFonts().then((fonts) => {
             if (fonts && fonts.length > 0) {
@@ -121,6 +125,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
         setCurrentFont(font)
         saveFont(font)
         onFontChange?.(font)
+    }
+
+    const handleEditorFontChange = (font: string) => {
+        setCurrentEditorFont(font)
+        saveEditorFont(font)
+        onEditorFontChange?.(font)
     }
 
     const handleResetShortcut = useCallback((key: keyof ShortcutSettings) => {
@@ -204,6 +214,18 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
                             <select
                                 value={currentFont}
                                 onChange={(e) => handleFontChange(e.target.value)}
+                                className="settings-select font-select"
+                            >
+                                {systemFonts.map((font) => (
+                                    <option key={font} value={font}>{font}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.editorFont')}</span>
+                            <select
+                                value={currentEditorFont}
+                                onChange={(e) => handleEditorFontChange(e.target.value)}
                                 className="settings-select font-select"
                             >
                                 {systemFonts.map((font) => (
