@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
+import packageJson from '../../package.json'
 import './Settings.css'
 
 interface SettingsProps {
@@ -281,7 +282,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
                         <h3>{t('settings.about')}</h3>
                         <div className="settings-about">
                             <p><strong>{t('app.title')}</strong></p>
-                            <p>{t('settings.version')} 0.1.1</p>
+                            <p>{t('settings.version')} {packageJson.version}</p>
                             <p className="text-muted">{t('app.description')}</p>
                         </div>
                     </div>
