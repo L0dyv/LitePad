@@ -21,6 +21,8 @@
         "closeTab": "关闭标签页",
         "pressShortcut": "按下快捷键...",
         "resetDefault": "恢复默认",
+        "shortcutReference": "快捷键速查",
+        "viewShortcuts": "查看全部",
         "about": "关于",
         "version": "版本"
     },
