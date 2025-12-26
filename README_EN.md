@@ -6,13 +6,32 @@ A scratchpad for quick notes. Hotkey to summon, use and go.
 
 ## Features
 
-- Multi-tab management
+**Editor**
+- Multi-tab management (right-click menu for rename/close)
+- Quick calculation (type `1+1=` and press Ctrl+Enter to get result)
+- Auto-save content
+
+**Shortcuts**
 - Global hotkey (Alt+X)
-- Inline expression calculation (`1+1=` then press Ctrl+Enter)
+- Custom shortcuts (new/close tab)
+- Quick tab switching (Ctrl+Tab, Ctrl+1~9)
+
+**Personalization**
+- Multi-language support (Chinese/English)
+- Custom UI font and editor font
+- Auto-launch on startup
+- Always on top
 - Window position and size memory
-- Custom shortcuts
+
+## Screenshots
+
+**▼ Main Interface**
 
 ![LitePad Preview](assets/flashpad-reference.png)
+
+**▼ Settings**
+
+![LitePad Settings](assets/LitePad_settings_img.png)
 
 ## Development
 
