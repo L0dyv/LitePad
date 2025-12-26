@@ -29,6 +29,7 @@ export interface StatusBarSettings {
 const STORAGE_KEY = 'flashpad-data'
 const SHORTCUTS_KEY = 'flashpad-shortcuts'
 const STATUSBAR_KEY = 'flashpad-statusbar'
+const FONT_KEY = 'flashpad-font'
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
@@ -41,6 +42,31 @@ export const DEFAULT_STATUSBAR: StatusBarSettings = {
     showShortcuts: true,
     showLineCount: true,
     showCharCount: true
+}
+
+// 默认字体
+export const DEFAULT_FONT = 'SimSun'
+
+// 加载字体设置
+export function loadFont(): string {
+    try {
+        const stored = localStorage.getItem(FONT_KEY)
+        if (stored) {
+            return stored
+        }
+    } catch (e) {
+        console.error('加载字体设置失败:', e)
+    }
+    return DEFAULT_FONT
+}
+
+// 保存字体设置
+export function saveFont(font: string): void {
+    try {
+        localStorage.setItem(FONT_KEY, font)
+    } catch (e) {
+        console.error('保存字体设置失败:', e)
+    }
 }
 
 // 加载快捷键配置

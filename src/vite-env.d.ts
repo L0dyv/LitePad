@@ -14,5 +14,6 @@ interface Window {
         getSettings: () => Promise<AppSettings>
         setAutoLaunch: (enabled: boolean) => void
         setAlwaysOnTop: (enabled: boolean) => void
+        getSystemFonts: () => Promise<string[]>
     }
 }

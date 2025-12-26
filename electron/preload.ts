@@ -10,5 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     // 设置相关
     getSettings: () => ipcRenderer.invoke('get-settings'),
     setAutoLaunch: (enabled: boolean) => ipcRenderer.send('set-auto-launch', enabled),
-    setAlwaysOnTop: (enabled: boolean) => ipcRenderer.send('set-always-on-top', enabled)
+    setAlwaysOnTop: (enabled: boolean) => ipcRenderer.send('set-always-on-top', enabled),
+
+    // 字体相关
+    getSystemFonts: () => ipcRenderer.invoke('get-system-fonts')
 })

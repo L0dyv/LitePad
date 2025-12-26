@@ -7,6 +7,7 @@
         "title": "Settings",
         "general": "General",
         "language": "Language",
+        "font": "Font",
         "autoLaunch": "Launch at startup",
         "alwaysOnTop": "Always on top",
         "shortcuts": "Shortcuts",

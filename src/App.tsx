@@ -5,7 +5,7 @@ import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -14,7 +14,13 @@ function App() {
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
+    const [currentFont, setCurrentFont] = useState(() => loadFont())
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+    // 应用字体设置
+    useEffect(() => {
+        document.body.style.fontFamily = `'${currentFont}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`
+    }, [currentFont])
 
     // 当前激活的标签页
     const activeTab = data.tabs.find(t => t.id === data.activeTabId) || data.tabs[0]
@@ -201,6 +207,7 @@ function App() {
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
                 onShortcutsChange={refreshShortcuts}
+                onFontChange={setCurrentFont}
             />
         </div>
     )
