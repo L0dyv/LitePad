@@ -218,6 +218,7 @@
     border: 1px solid var(--border);
     border-radius: 4px;
     color: var(--text-primary);
+    font-family: inherit;
     font-size: 13px;
     cursor: pointer;
     outline: none;
@@ -229,5 +230,39 @@
 }
 
 .settings-select:focus {
+    border-color: var(--accent);
+}
+
+/* 字体选择框 - 更宽以容纳长字体名 */
+.settings-select.font-select {
+    min-width: 180px;
+    max-width: 200px;
+}
+
+/* 字体输入容器 */
+.font-input-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 文本输入框 */
+.settings-input {
+    padding: 6px 10px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    outline: none;
+    min-width: 120px;
+}
+
+.settings-input:hover {
+    border-color: var(--text-secondary);
+}
+
+.settings-input:focus {
     border-color: var(--accent);
 }

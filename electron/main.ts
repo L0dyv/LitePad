@@ -1,6 +1,7 @@
 import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } from 'electron'
 import { join, dirname } from 'path'
 import { existsSync, mkdirSync } from 'fs'
+import { exec } from 'child_process'
 import Store from 'electron-store'
 
 // Portable 模式：设置用户数据目录到程序目录的 data 文件夹
@@ -214,6 +215,24 @@ app.whenReady().then(() => {
     ipcMain.on('set-always-on-top', (_event, enabled: boolean) => {
         mainWindow?.setAlwaysOnTop(enabled)
         store.set('settings.alwaysOnTop', enabled)
+    })
+
+    // 获取系统字体列表
+    ipcMain.handle('get-system-fonts', () => {
+        return new Promise<string[]>((resolve) => {
+            // 使用 PowerShell 获取系统字体，chcp 65001 强制 UTF-8 输出避免中文乱码
+            const cmd = `chcp 65001 >nul && powershell -Command "[System.Reflection.Assembly]::LoadWithPartialName('System.Drawing') | Out-Null; (New-Object System.Drawing.Text.InstalledFontCollection).Families | ForEach-Object { $_.Name }"`
+            exec(cmd, { encoding: 'utf8', maxBuffer: 1024 * 1024 }, (error, stdout) => {
+                if (error) {
+                    console.error('获取系统字体失败:', error)
+                    // 返回默认字体列表
+                    resolve(['SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'])
+                    return
+                }
+                const fonts = stdout.trim().split('\n').map(f => f.trim()).filter(f => f.length > 0)
+                resolve(fonts)
+            })
+        })
     })
 
     app.on('activate', () => {

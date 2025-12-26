@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS } from '../utils/storage'
+import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import './Settings.css'
 
@@ -8,6 +8,7 @@ interface SettingsProps {
     isOpen: boolean
     onClose: () => void
     onShortcutsChange?: () => void
+    onFontChange?: (font: string) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -34,13 +35,17 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [recording, setRecording] = useState<keyof ShortcutSettings | null>(null)
     const [currentLang, setCurrentLang] = useState(() => getCurrentLanguage())
+    const [currentFont, setCurrentFont] = useState(() => loadFont())
+    const [systemFonts, setSystemFonts] = useState<string[]>([
+        'SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'
+    ])
 
     useEffect(() => {
         // 获取当前设置
@@ -52,6 +57,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         setShortcuts(loadShortcuts())
         // 获取当前语言
         setCurrentLang(getCurrentLanguage())
+        // 获取当前字体
+        setCurrentFont(loadFont())
+        // 获取系统字体列表
+        window.electronAPI?.getSystemFonts().then((fonts) => {
+            if (fonts && fonts.length > 0) {
+                setSystemFonts(fonts)
+            }
+        })
     }, [isOpen])
 
     // 录制快捷键
@@ -102,6 +115,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
         changeLanguage(lang)
     }
 
+    const handleFontChange = (font: string) => {
+        setCurrentFont(font)
+        saveFont(font)
+        onFontChange?.(font)
+    }
+
     const handleResetShortcut = useCallback((key: keyof ShortcutSettings) => {
         const newShortcuts = { ...shortcuts, [key]: DEFAULT_SHORTCUTS[key] }
         setShortcuts(newShortcuts)
@@ -134,6 +153,18 @@ export function Settings({ isOpen, onClose, onShortcutsChange }: SettingsProps) 
                             >
                                 <option value="zh">{t('languages.zh')}</option>
                                 <option value="en">{t('languages.en')}</option>
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.font')}</span>
+                            <select
+                                value={currentFont}
+                                onChange={(e) => handleFontChange(e.target.value)}
+                                className="settings-select font-select"
+                            >
+                                {systemFonts.map((font) => (
+                                    <option key={font} value={font}>{font}</option>
+                                ))}
                             </select>
                         </label>
                         <label className="settings-item">

@@ -7,6 +7,7 @@
         "title": "设置",
         "general": "常规",
         "language": "语言",
+        "font": "字体",
         "autoLaunch": "开机自启动",
         "alwaysOnTop": "窗口置顶",
         "shortcuts": "快捷键",
