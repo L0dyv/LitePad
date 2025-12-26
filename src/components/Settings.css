@@ -266,3 +266,26 @@
 .settings-input:focus {
     border-color: var(--accent);
 }
+
+/* 查看快捷键按钮 */
+.view-shortcuts-btn {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.view-shortcuts-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+/* 快捷键帮助弹窗 */
+.shortcut-help-panel {
+    max-width: 380px;
+}

@@ -46,6 +46,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
     const [systemFonts, setSystemFonts] = useState<string[]>([
         'SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'
     ])
+    const [showShortcutHelp, setShowShortcutHelp] = useState(false)
 
     useEffect(() => {
         // 获取当前设置
@@ -134,6 +135,48 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
 
     if (!isOpen) return null
 
+    // 快捷键帮助弹窗
+    if (showShortcutHelp) {
+        return (
+            <div className="settings-overlay" onClick={() => setShowShortcutHelp(false)}>
+                <div className="settings-panel shortcut-help-panel" onClick={(e) => e.stopPropagation()}>
+                    <div className="settings-header">
+                        <h2>{t('settings.shortcutReference')}</h2>
+                        <button className="settings-close" onClick={() => setShowShortcutHelp(false)}>×</button>
+                    </div>
+                    <div className="settings-content">
+                        <div className="settings-section">
+                            <div className="settings-item readonly">
+                                <span>{t('settings.showHideWindow')}</span>
+                                <kbd>Alt + X</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.calculate')}</span>
+                                <kbd>Ctrl + Enter</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.switchTab')}</span>
+                                <kbd>Ctrl + Tab</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.jumpToTab')}</span>
+                                <kbd>Ctrl + 1~9</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.newTab')}</span>
+                                <kbd>{shortcuts.newTab}</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.closeTab')}</span>
+                                <kbd>{shortcuts.closeTab}</kbd>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     return (
         <div className="settings-overlay" onClick={onClose}>
             <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
@@ -186,22 +229,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
                     </div>
                     <div className="settings-section">
                         <h3>{t('settings.shortcuts')}</h3>
-                        <p className="settings-hint">{t('settings.fixedShortcuts')}</p>
-                        <div className="settings-item readonly">
-                            <span>{t('settings.showHideWindow')}</span>
-                            <kbd>Alt + X</kbd>
-                        </div>
-                        <div className="settings-item readonly">
-                            <span>{t('settings.calculate')}</span>
-                            <kbd>Ctrl + Enter</kbd>
-                        </div>
-                        <div className="settings-item readonly">
-                            <span>{t('settings.switchTab')}</span>
-                            <kbd>Ctrl + Tab</kbd>
-                        </div>
-                        <div className="settings-item readonly">
-                            <span>{t('settings.jumpToTab')}</span>
-                            <kbd>Ctrl + 1~9</kbd>
+                        <div className="settings-item">
+                            <span>{t('settings.shortcutReference')}</span>
+                            <button
+                                className="view-shortcuts-btn"
+                                onClick={() => setShowShortcutHelp(true)}
+                            >
+                                {t('settings.viewShortcuts')} ⌨️
+                            </button>
                         </div>
 
                         <p className="settings-hint custom">{t('settings.customShortcuts')}</p>
@@ -246,7 +281,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange }: S
                         <h3>{t('settings.about')}</h3>
                         <div className="settings-about">
                             <p><strong>{t('app.title')}</strong></p>
-                            <p>{t('settings.version')} 0.1.0</p>
+                            <p>{t('settings.version')} 0.1.1</p>
                             <p className="text-muted">{t('app.description')}</p>
                         </div>
                     </div>

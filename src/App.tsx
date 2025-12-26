@@ -117,6 +117,13 @@ function App() {
                 return
             }
 
+            // 固定快捷键：Ctrl+, 打开设置
+            if (e.ctrlKey && e.key === ',') {
+                e.preventDefault()
+                setShowSettings(prev => !prev)
+                return
+            }
+
             // 固定快捷键：Ctrl+Tab 切换到下一个标签页
             if (e.ctrlKey && e.key === 'Tab') {
                 e.preventDefault()

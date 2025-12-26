@@ -21,6 +21,8 @@
         "closeTab": "Close tab",
         "pressShortcut": "Press shortcut...",
         "resetDefault": "Reset to default",
+        "shortcutReference": "Shortcut Reference",
+        "viewShortcuts": "View All",
         "about": "About",
         "version": "Version"
     },
