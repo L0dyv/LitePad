@@ -99,6 +99,26 @@ function App() {
         setShortcuts(loadShortcuts())
     }, [])
 
+    // 处理语言切换，更新默认命名的标签页
+    const handleLanguageChange = useCallback((lang: string) => {
+        // 使用 i18n 的 lng 选项获取不同语言的默认名称
+        const zhDefault = t('tabBar.newPage', { lng: 'zh' })
+        const enDefault = t('tabBar.newPage', { lng: 'en' })
+        const defaultNames = [zhDefault, enDefault]
+
+        // 获取新语言的默认名称
+        const newDefaultName = t('tabBar.newPage', { lng: lang })
+
+        setData(prev => ({
+            ...prev,
+            tabs: prev.tabs.map(tab =>
+                defaultNames.includes(tab.title)
+                    ? { ...tab, title: newDefaultName }
+                    : tab
+            )
+        }))
+    }, [t])
+
     // 键盘快捷键
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -218,6 +238,7 @@ function App() {
                 onShortcutsChange={refreshShortcuts}
                 onFontChange={setCurrentFont}
                 onEditorFontChange={setEditorFont}
+                onLanguageChange={handleLanguageChange}
             />
         </div>
     )
