@@ -11,6 +11,7 @@ interface SettingsProps {
     onShortcutsChange?: () => void
     onFontChange?: (font: string) => void
     onEditorFontChange?: (font: string) => void
+    onLanguageChange?: (lang: string) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -37,7 +38,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onLanguageChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -119,6 +120,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const handleLanguageChange = (lang: string) => {
         setCurrentLang(lang)
         changeLanguage(lang)
+        onLanguageChange?.(lang)
     }
 
     const handleFontChange = (font: string) => {
