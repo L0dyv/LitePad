@@ -180,6 +180,16 @@ function App() {
         }))
     }
 
+    // 标签页拖拽重新排序
+    const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
+        setData(prev => {
+            const newTabs = [...prev.tabs]
+            const [movedTab] = newTabs.splice(fromIndex, 1)
+            newTabs.splice(toIndex, 0, movedTab)
+            return { ...prev, tabs: newTabs }
+        })
+    }, [])
+
     // 更新标签页内容
     const handleContentChange = (content: string) => {
         setData(prev => ({
@@ -207,6 +217,7 @@ function App() {
                     onTabClose={handleTabClose}
                     onTabAdd={handleTabAdd}
                     onTabRename={handleTabRename}
+                    onTabReorder={handleTabReorder}
                 />
                 <button className="settings-btn" onClick={() => setShowSettings(true)}>
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
