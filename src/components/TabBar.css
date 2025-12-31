@@ -9,6 +9,7 @@
 
 .tab-bar::-webkit-scrollbar {
     height: 4px;
+    transition: height 0.2s ease;
 }
 
 .tab-bar::-webkit-scrollbar-track {
@@ -18,6 +19,16 @@
 .tab-bar::-webkit-scrollbar-thumb {
     background: var(--border);
     border-radius: 2px;
+    transition: all 0.2s ease;
+}
+
+/* 滚动条hover放大效果 */
+.tab-bar:hover::-webkit-scrollbar {
+    height: 8px;
+}
+
+.tab-bar:hover::-webkit-scrollbar-thumb {
+    background: var(--text-secondary);
 }
 
 .tab {
@@ -110,6 +121,7 @@
     border-radius: 3px;
     color: var(--text-primary);
     font-size: 13px;
+    font-family: inherit;
     outline: none;
     position: relative;
     z-index: 10;
