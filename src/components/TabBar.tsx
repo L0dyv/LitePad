@@ -11,6 +11,7 @@ interface TabBarProps {
     onTabClose: (id: string) => void
     onTabAdd: () => void
     onTabRename: (id: string, newTitle: string) => void
+    onTabReorder?: (fromIndex: number, toIndex: number) => void
 }
 
 interface ContextMenuState {
@@ -20,7 +21,7 @@ interface ContextMenuState {
     tabId: string | null
 }
 
-export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder }: TabBarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
@@ -30,6 +31,8 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
         y: 0,
         tabId: null
     })
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
     const inputRef = useRef<HTMLInputElement>(null)
 
     // 当进入编辑模式时，聚焦输入框
@@ -89,6 +92,44 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
         setContextMenu(prev => ({ ...prev, visible: false }))
     }
 
+    // 拖拽排序相关处理
+    const handleDragStart = (e: React.DragEvent, index: number) => {
+        // 编辑模式下不允许拖拽
+        if (editingId) {
+            e.preventDefault()
+            return
+        }
+        setDraggedIndex(index)
+        e.dataTransfer.effectAllowed = 'move'
+        e.dataTransfer.setData('text/plain', index.toString())
+    }
+
+    const handleDragOver = (e: React.DragEvent, index: number) => {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        if (draggedIndex !== null && draggedIndex !== index) {
+            setDragOverIndex(index)
+        }
+    }
+
+    const handleDragLeave = () => {
+        setDragOverIndex(null)
+    }
+
+    const handleDrop = (e: React.DragEvent, toIndex: number) => {
+        e.preventDefault()
+        if (draggedIndex !== null && draggedIndex !== toIndex && onTabReorder) {
+            onTabReorder(draggedIndex, toIndex)
+        }
+        setDraggedIndex(null)
+        setDragOverIndex(null)
+    }
+
+    const handleDragEnd = () => {
+        setDraggedIndex(null)
+        setDragOverIndex(null)
+    }
+
     const getContextMenuItems = (): MenuItem[] => {
         const tabId = contextMenu.tabId
         const tabIndex = tabs.findIndex(t => t.id === tabId)
@@ -137,13 +178,19 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
     return (
         <>
             <div className="tab-bar">
-                {tabs.map((tab) => (
+                {tabs.map((tab, index) => (
                     <div
                         key={tab.id}
-                        className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
+                        className={`tab ${tab.id === activeTabId ? 'active' : ''}${draggedIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
+                        draggable={editingId !== tab.id}
                         onClick={() => editingId !== tab.id && onTabClick(tab.id)}
                         onDoubleClick={() => handleDoubleClick(tab)}
                         onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                        onDragStart={(e) => handleDragStart(e, index)}
+                        onDragOver={(e) => handleDragOver(e, index)}
+                        onDragLeave={handleDragLeave}
+                        onDrop={(e) => handleDrop(e, index)}
+                        onDragEnd={handleDragEnd}
                     >
                         {editingId === tab.id ? (
                             <input

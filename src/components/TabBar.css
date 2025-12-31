@@ -103,7 +103,7 @@
 
 .tab-rename-input {
     width: 100%;
-    max-width: 120px;
+    min-width: 60px;
     padding: 2px 6px;
     background: var(--bg-primary);
     border: 1px solid var(--accent);
@@ -111,8 +111,29 @@
     color: var(--text-primary);
     font-size: 13px;
     outline: none;
+    position: relative;
+    z-index: 10;
 }
 
 .tab-rename-input:focus {
     box-shadow: 0 0 0 2px rgba(88, 166, 255, 0.3);
+}
+
+/* 拖拽样式 */
+.tab.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+}
+
+.tab.drag-over {
+    border-left: 2px solid var(--accent);
+    padding-left: 8px;
+}
+
+.tab[draggable="true"] {
+    cursor: grab;
+}
+
+.tab[draggable="true"]:active {
+    cursor: grabbing;
 }
