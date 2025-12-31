@@ -1,12 +1,12 @@
 {
     "name": "flashpad-self",
-    "version": "0.1.5",
+    "version": "0.1.6",
     "description": "快速、本地、高性能的速效记事本",
     "main": "dist-electron/main.js",
     "scripts": {
         "dev": "vite",
         "build": "vite build",
-        "build:win": "vite build && electron-builder --win",
+        "build:win": "vite build && electron-builder --win && node scripts/post-build.js",
         "preview": "vite preview"
     },
     "dependencies": {
