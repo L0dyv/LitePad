@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { EditorState } from '@codemirror/state'
-import { EditorView, keymap, highlightActiveLine, lineNumbers, highlightActiveLineGutter } from '@codemirror/view'
+import { EditorView, keymap, highlightActiveLine } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { markdown } from '@codemirror/lang-markdown'
@@ -41,17 +41,7 @@ export function Editor({ content, onChange, font = 'Consolas', autoFocus = false
             '.cm-activeLine': {
                 backgroundColor: 'rgba(255, 255, 255, 0.03)'
             },
-            '.cm-activeLineGutter': {
-                backgroundColor: 'rgba(255, 255, 255, 0.03)'
-            },
-            '.cm-gutters': {
-                backgroundColor: 'var(--bg-secondary)',
-                color: 'var(--text-secondary)',
-                border: 'none'
-            },
-            '.cm-lineNumbers .cm-gutterElement': {
-                padding: '0 8px'
-            },
+
             '.cm-selectionBackground': {
                 backgroundColor: 'rgba(233, 69, 96, 0.3) !important'
             },
@@ -120,8 +110,7 @@ export function Editor({ content, onChange, font = 'Consolas', autoFocus = false
                 calculateKeymap,
                 markdown(),
                 syntaxHighlighting(defaultHighlightStyle),
-                lineNumbers(),
-                highlightActiveLineGutter(),
+
                 highlightActiveLine(),
                 history(),
                 highlightSelectionMatches(),
