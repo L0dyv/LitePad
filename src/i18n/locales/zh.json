@@ -44,8 +44,9 @@
         "newPage": "新建页"
     },
     "titleBar": {
-        "switchToLight": "切换到亮色模式",
-        "switchToDark": "切换到暗色模式"
+        "currentDark": "当前: 深色模式",
+        "currentLight": "当前: 浅色模式",
+        "currentSystem": "当前: 跟随系统"
     },
     "languages": {
         "zh": "简体中文",

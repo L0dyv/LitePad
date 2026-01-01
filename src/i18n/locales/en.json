@@ -44,8 +44,9 @@
         "newPage": "New Page"
     },
     "titleBar": {
-        "switchToLight": "Switch to light mode",
-        "switchToDark": "Switch to dark mode"
+        "currentDark": "Current: Dark mode",
+        "currentLight": "Current: Light mode",
+        "currentSystem": "Current: Follow system"
     },
     "languages": {
         "zh": "简体中文",
