@@ -9,8 +9,12 @@
 .app-header {
     display: flex;
     align-items: center;
+    height: 40px;
+    min-height: 40px;
+    max-height: 40px;
     background: var(--bg-secondary);
     border-bottom: 1px solid var(--border);
+    overflow: hidden;
 }
 
 .app-header .tab-bar {
