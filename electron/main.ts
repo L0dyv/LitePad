@@ -164,6 +164,11 @@ function toggleWindow() {
         mainWindow.show()
         mainWindow.setOpacity(1)
         mainWindow.focus()
+        // 修复：重新应用 alwaysOnTop 状态，防止 show() 后状态丢失
+        const settings = store.get('settings')
+        if (settings.alwaysOnTop) {
+            mainWindow.setAlwaysOnTop(true)
+        }
     }
 }
 

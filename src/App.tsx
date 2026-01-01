@@ -229,7 +229,7 @@ function App() {
             <main className="app-main">
                 {activeTab && (
                     <Editor
-                        key={activeTab.id}
+                        key={`${activeTab.id}-${editorFont}`}
                         content={activeTab.content}
                         onChange={handleContentChange}
                         font={editorFont}
