@@ -21,19 +21,19 @@
 }
 
 [data-theme="light"] {
-  /* 亮色模式配色 */
+  /* 亮色模式配色 - Reboot Studio 风格 */
   --bg-primary: #ffffff;
-  --bg-secondary: #f3f3f3;
-  --bg-tertiary: #e5e5e5;
-  --bg-hover: #e8e8e8;
-  --text-primary: #333333;
-  --text-secondary: #666666;
-  --accent: #0078d4;
-  --accent-hover: #026ec1;
-  --border: #e0e0e0;
-  --success: #008000;
-  --warning: #795e26;
-  --danger: #a1260d;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f7f7f7;
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --text-primary: #232323;
+  --text-secondary: rgba(35, 35, 35, 0.5);
+  --accent: #232323;
+  --accent-hover: #000000;
+  --border: rgba(0, 0, 0, 0.08);
+  --success: #16a34a;
+  --warning: #ca8a04;
+  --danger: #dc2626;
 }
 
 html,
