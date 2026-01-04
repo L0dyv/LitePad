@@ -70,7 +70,7 @@ function App() {
         const baseName = t('tabBar.newPage')
         // 生成唯一名称
         let newName = baseName
-        let counter = 2
+        let counter = 1
         setData(prev => {
             const existingNames = new Set(prev.tabs.map(tab => tab.title))
             while (existingNames.has(newName)) {

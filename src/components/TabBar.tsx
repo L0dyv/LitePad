@@ -37,7 +37,21 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
     })
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+    const [isOverflowing, setIsOverflowing] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
+    const tabBarRef = useRef<HTMLDivElement>(null)
+
+    // 检测标签栏是否溢出
+    useEffect(() => {
+        const checkOverflow = () => {
+            if (tabBarRef.current) {
+                setIsOverflowing(tabBarRef.current.scrollWidth > tabBarRef.current.clientWidth)
+            }
+        }
+        checkOverflow()
+        window.addEventListener('resize', checkOverflow)
+        return () => window.removeEventListener('resize', checkOverflow)
+    }, [tabs])
 
     // 当进入编辑模式时，聚焦输入框
     useEffect(() => {
@@ -182,7 +196,7 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
     return (
         <>
             <div className="tab-bar-container">
-                <div className="tab-bar">
+                <div className="tab-bar" ref={tabBarRef}>
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
@@ -220,9 +234,10 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
                             )}
                         </div>
                     ))}
-                    <button className="tab-add" onClick={onTabAdd}>+</button>
+                    {!isOverflowing && <button className="tab-add" onClick={onTabAdd}>+</button>}
                 </div>
                 <div className="tab-bar-fixed">
+                    {isOverflowing && <button className="tab-add" onClick={onTabAdd}>+</button>}
                     <TrashDropdown
                         closedTabs={closedTabs}
                         onRestore={onRestoreFromTrash}
