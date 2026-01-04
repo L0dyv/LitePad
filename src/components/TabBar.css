@@ -1,12 +1,30 @@
+/* 容器：左边可滚动的标签区，右边固定的回收站 */
+.tab-bar-container {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    width: 100%;
+    -webkit-app-region: no-drag;
+}
+
 .tab-bar {
     display: flex;
     align-items: center;
     height: 100%;
     padding: 4px 8px;
     gap: 2px;
-    -webkit-app-region: no-drag;
     overflow-x: auto;
     overflow-y: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+/* 固定在右边的回收站区域 */
+.tab-bar-fixed {
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    flex-shrink: 0;
 }
 
 .tab-bar::-webkit-scrollbar {

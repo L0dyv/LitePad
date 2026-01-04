@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Tab } from '../utils/storage'
+import { Tab, ClosedTab } from '../utils/storage'
 import { ContextMenu, MenuItem } from './ContextMenu'
+import { TrashDropdown } from './TrashDropdown'
 import './TabBar.css'
 
 interface TabBarProps {
@@ -12,6 +13,9 @@ interface TabBarProps {
     onTabAdd: () => void
     onTabRename: (id: string, newTitle: string) => void
     onTabReorder?: (fromIndex: number, toIndex: number) => void
+    closedTabs: ClosedTab[]
+    onRestoreFromTrash: (tab: ClosedTab) => void
+    onClearTrash: () => void
 }
 
 interface ContextMenuState {
@@ -21,7 +25,7 @@ interface ContextMenuState {
     tabId: string | null
 }
 
-export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder, closedTabs, onRestoreFromTrash, onClearTrash }: TabBarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
@@ -177,45 +181,54 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
 
     return (
         <>
-            <div className="tab-bar">
-                {tabs.map((tab, index) => (
-                    <div
-                        key={tab.id}
-                        className={`tab ${tab.id === activeTabId ? 'active' : ''}${draggedIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
-                        draggable={editingId !== tab.id}
-                        onClick={() => editingId !== tab.id && onTabClick(tab.id)}
-                        onDoubleClick={() => handleDoubleClick(tab)}
-                        onContextMenu={(e) => handleContextMenu(e, tab.id)}
-                        onDragStart={(e) => handleDragStart(e, index)}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDragLeave={handleDragLeave}
-                        onDrop={(e) => handleDrop(e, index)}
-                        onDragEnd={handleDragEnd}
-                    >
-                        {editingId === tab.id ? (
-                            <input
-                                ref={inputRef}
-                                className="tab-rename-input"
-                                value={editValue}
-                                onChange={(e) => setEditValue(e.target.value)}
-                                onKeyDown={(e) => handleKeyDown(e, tab.id)}
-                                onBlur={() => handleRenameConfirm(tab.id)}
-                                onClick={(e) => e.stopPropagation()}
-                            />
-                        ) : (
-                            <span className="tab-title">{tab.title}</span>
-                        )}
-                        {tabs.length > 1 && editingId !== tab.id && (
-                            <button
-                                className="tab-close"
-                                onClick={(e) => handleClose(e, tab.id)}
-                            >
-                                ×
-                            </button>
-                        )}
-                    </div>
-                ))}
-                <button className="tab-add" onClick={onTabAdd}>+</button>
+            <div className="tab-bar-container">
+                <div className="tab-bar">
+                    {tabs.map((tab, index) => (
+                        <div
+                            key={tab.id}
+                            className={`tab ${tab.id === activeTabId ? 'active' : ''}${draggedIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
+                            draggable={editingId !== tab.id}
+                            onClick={() => editingId !== tab.id && onTabClick(tab.id)}
+                            onDoubleClick={() => handleDoubleClick(tab)}
+                            onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                            onDragStart={(e) => handleDragStart(e, index)}
+                            onDragOver={(e) => handleDragOver(e, index)}
+                            onDragLeave={handleDragLeave}
+                            onDrop={(e) => handleDrop(e, index)}
+                            onDragEnd={handleDragEnd}
+                        >
+                            {editingId === tab.id ? (
+                                <input
+                                    ref={inputRef}
+                                    className="tab-rename-input"
+                                    value={editValue}
+                                    onChange={(e) => setEditValue(e.target.value)}
+                                    onKeyDown={(e) => handleKeyDown(e, tab.id)}
+                                    onBlur={() => handleRenameConfirm(tab.id)}
+                                    onClick={(e) => e.stopPropagation()}
+                                />
+                            ) : (
+                                <span className="tab-title">{tab.title}</span>
+                            )}
+                            {tabs.length > 1 && editingId !== tab.id && (
+                                <button
+                                    className="tab-close"
+                                    onClick={(e) => handleClose(e, tab.id)}
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                    <button className="tab-add" onClick={onTabAdd}>+</button>
+                </div>
+                <div className="tab-bar-fixed">
+                    <TrashDropdown
+                        closedTabs={closedTabs}
+                        onRestore={onRestoreFromTrash}
+                        onClear={onClearTrash}
+                    />
+                </div>
             </div>
             {contextMenu.visible && (
                 <ContextMenu
