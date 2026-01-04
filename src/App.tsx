@@ -102,11 +102,15 @@ function App() {
     // 处理语言切换，更新默认命名的标签页
     const handleLanguageChange = useCallback((lang: string) => {
         // 使用 i18n 的 lng 选项获取不同语言的默认名称
-        const zhDefault = t('tabBar.newPage', { lng: 'zh' })
-        const enDefault = t('tabBar.newPage', { lng: 'en' })
-        const defaultNames = [zhDefault, enDefault]
+        // 需要处理 newPage（新建页）和 defaultPage（默认页）两种情况
+        const zhNewPage = t('tabBar.newPage', { lng: 'zh' })
+        const enNewPage = t('tabBar.newPage', { lng: 'en' })
+        const zhDefaultPage = t('tabBar.defaultPage', { lng: 'zh' })
+        const enDefaultPage = t('tabBar.defaultPage', { lng: 'en' })
+        // 还需要包含硬编码的初始值 'New Page'（storage.ts 中的默认值）
+        const defaultNames = [zhNewPage, enNewPage, zhDefaultPage, enDefaultPage, 'New Page']
 
-        // 获取新语言的默认名称
+        // 获取新语言的默认名称（使用 newPage 作为新标签的名称）
         const newDefaultName = t('tabBar.newPage', { lng: lang })
 
         setData(prev => ({
