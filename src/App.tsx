@@ -274,9 +274,6 @@ function App() {
     return (
         <div className="app">
             <TitleBar
-                closedTabs={closedTabs}
-                onRestoreFromTrash={handleRestoreFromTrash}
-                onClearTrash={handleClearTrash}
                 onOpenSettings={() => setShowSettings(true)}
             />
             <header className="app-header">
@@ -288,6 +285,9 @@ function App() {
                     onTabAdd={handleTabAdd}
                     onTabRename={handleTabRename}
                     onTabReorder={handleTabReorder}
+                    closedTabs={closedTabs}
+                    onRestoreFromTrash={handleRestoreFromTrash}
+                    onClearTrash={handleClearTrash}
                 />
             </header>
             <main className="app-main">

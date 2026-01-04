@@ -1,17 +1,12 @@
 import { useTranslation } from 'react-i18next'
 import { useTheme } from '../hooks/useTheme'
-import { TrashDropdown } from './TrashDropdown'
-import { ClosedTab } from '../utils/storage'
 import './TitleBar.css'
 
 interface TitleBarProps {
-    closedTabs: ClosedTab[]
-    onRestoreFromTrash: (tab: ClosedTab) => void
-    onClearTrash: () => void
     onOpenSettings: () => void
 }
 
-export function TitleBar({ closedTabs, onRestoreFromTrash, onClearTrash, onOpenSettings }: TitleBarProps) {
+export function TitleBar({ onOpenSettings }: TitleBarProps) {
     const { t } = useTranslation()
     const { themeMode, resolvedTheme, toggleTheme } = useTheme()
 
@@ -76,11 +71,6 @@ export function TitleBar({ closedTabs, onRestoreFromTrash, onClearTrash, onOpenS
                 <span className="title-bar-title">{t('app.title')}</span>
             </div>
             <div className="title-bar-controls">
-                <TrashDropdown
-                    closedTabs={closedTabs}
-                    onRestore={onRestoreFromTrash}
-                    onClear={onClearTrash}
-                />
                 <button
                     className="title-bar-btn theme-toggle"
                     onClick={toggleTheme}
