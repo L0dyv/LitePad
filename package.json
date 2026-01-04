@@ -1,6 +1,6 @@
 {
     "name": "flashpad-self",
-    "version": "0.1.12",
+    "version": "0.1.13",
     "description": "快速、本地、高性能的速效记事本",
     "main": "dist-electron/main.js",
     "scripts": {
