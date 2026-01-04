@@ -5,7 +5,7 @@ import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -49,6 +49,11 @@ function App() {
     // 关闭标签页
     const handleTabClose = useCallback((id: string) => {
         setData(prev => {
+            // 找到要关闭的标签页并保存到回收站
+            const tabToClose = prev.tabs.find(t => t.id === id)
+            if (tabToClose) {
+                saveClosedTab(tabToClose)
+            }
             const newTabs = prev.tabs.filter(t => t.id !== id)
             const newActiveId = prev.activeTabId === id
                 ? newTabs[newTabs.length - 1]?.id || ''
@@ -65,6 +70,19 @@ function App() {
             activeTabId: newTab.id
         }))
     }, [t])
+
+    // 恢复关闭的标签页
+    const handleReopenTab = useCallback(() => {
+        const closedTab = popClosedTab()
+        if (closedTab) {
+            // 移除 closedAt 属性，恢复为普通 Tab
+            const { closedAt, ...tab } = closedTab
+            setData(prev => ({
+                tabs: [...prev.tabs, tab],
+                activeTabId: tab.id
+            }))
+        }
+    }, [])
 
     // 切换到下一个标签页
     const handleNextTab = useCallback(() => {
@@ -142,6 +160,13 @@ function App() {
                 return
             }
 
+            // 自定义快捷键：恢复关闭的标签页
+            if (matchShortcut(e, shortcuts.reopenTab)) {
+                e.preventDefault()
+                handleReopenTab()
+                return
+            }
+
             // 固定快捷键：Ctrl+, 打开设置
             if (e.ctrlKey && e.key === ',') {
                 e.preventDefault()
@@ -172,7 +197,7 @@ function App() {
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleNextTab, handlePrevTab, handleSwitchToTab])
+    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleReopenTab, handleNextTab, handlePrevTab, handleSwitchToTab])
 
     // 重命名标签页
     const handleTabRename = (id: string, newTitle: string) => {

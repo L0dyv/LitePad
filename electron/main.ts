@@ -174,15 +174,9 @@ function toggleWindow() {
 
 function registerShortcuts() {
     // 注册全局快捷键 Alt+X
-    const registered = globalShortcut.register('Alt+X', () => {
+    globalShortcut.register('Alt+X', () => {
         toggleWindow()
     })
-
-    if (!registered) {
-        console.error('全局快捷键 Alt+X 注册失败')
-    } else {
-        console.log('全局快捷键 Alt+X 注册成功')
-    }
 }
 
 
