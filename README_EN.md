@@ -29,9 +29,6 @@ A scratchpad for quick notes. Hotkey to summon, use and go.
 
 ![LitePad Preview](assets/flashpad-reference.png)
 
-**▼ Settings**
-
-![LitePad Settings](assets/LitePad_settings_img.png)
 
 ## Development
 
