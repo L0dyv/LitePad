@@ -8,6 +8,11 @@ export interface Tab {
     updatedAt: number
 }
 
+// 已关闭的标签页（用于回收站）
+export interface ClosedTab extends Tab {
+    closedAt: number
+}
+
 export interface AppData {
     tabs: Tab[]
     activeTabId: string
@@ -17,6 +22,7 @@ export interface AppData {
 export interface ShortcutSettings {
     newTab: string      // 新建标签页
     closeTab: string    // 关闭标签页
+    reopenTab: string   // 恢复关闭的标签页
 }
 
 // 状态栏显示配置
@@ -31,11 +37,14 @@ const SHORTCUTS_KEY = 'flashpad-shortcuts'
 const STATUSBAR_KEY = 'flashpad-statusbar'
 const FONT_KEY = 'flashpad-font'
 const EDITOR_FONT_KEY = 'flashpad-editor-font'
+const CLOSED_TABS_KEY = 'flashpad-closed-tabs'
+const MAX_CLOSED_TABS = 20  // 最多保留 20 个关闭的标签页
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
     newTab: 'Ctrl+T',
-    closeTab: 'Ctrl+W'
+    closeTab: 'Ctrl+W',
+    reopenTab: 'Ctrl+Shift+T'
 }
 
 // 默认状态栏设置
@@ -199,5 +208,54 @@ export function createTab(title?: string): Tab {
         content: '',
         createdAt: Date.now(),
         updatedAt: Date.now()
+    }
+}
+
+// 加载已关闭的标签页（回收站）
+export function loadClosedTabs(): ClosedTab[] {
+    try {
+        const stored = localStorage.getItem(CLOSED_TABS_KEY)
+        if (stored) {
+            return JSON.parse(stored)
+        }
+    } catch (e) {
+        console.error('加载回收站数据失败:', e)
+    }
+    return []
+}
+
+// 保存关闭的标签页到回收站
+export function saveClosedTab(tab: Tab): void {
+    try {
+        const closedTabs = loadClosedTabs()
+        const closedTab: ClosedTab = {
+            ...tab,
+            closedAt: Date.now()
+        }
+        // 添加到队列头部（最近关闭的在前）
+        closedTabs.unshift(closedTab)
+        // 限制最大数量
+        if (closedTabs.length > MAX_CLOSED_TABS) {
+            closedTabs.pop()
+        }
+        localStorage.setItem(CLOSED_TABS_KEY, JSON.stringify(closedTabs))
+    } catch (e) {
+        console.error('保存到回收站失败:', e)
+    }
+}
+
+// 弹出最近关闭的标签页（恢复时使用）
+export function popClosedTab(): ClosedTab | null {
+    try {
+        const closedTabs = loadClosedTabs()
+        if (closedTabs.length === 0) {
+            return null
+        }
+        const [restoredTab, ...remaining] = closedTabs
+        localStorage.setItem(CLOSED_TABS_KEY, JSON.stringify(remaining))
+        return restoredTab
+    } catch (e) {
+        console.error('从回收站恢复失败:', e)
+        return null
     }
 }

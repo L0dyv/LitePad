@@ -20,6 +20,7 @@
         "jumpToTab": "Jump to tab",
         "newTab": "New tab",
         "closeTab": "Close tab",
+        "reopenTab": "Reopen closed tab",
         "pressShortcut": "Press shortcut...",
         "resetDefault": "Reset to default",
         "shortcutReference": "Shortcut Reference",

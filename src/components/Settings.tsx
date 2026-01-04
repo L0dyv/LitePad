@@ -183,6 +183,10 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 <span>{t('settings.closeTab')}</span>
                                 <kbd>{shortcuts.closeTab}</kbd>
                             </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.reopenTab')}</span>
+                                <kbd>{shortcuts.reopenTab}</kbd>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -296,6 +300,24 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                     <button
                                         className="reset-btn"
                                         onClick={() => handleResetShortcut('closeTab')}
+                                        title={t('settings.resetDefault')}
+                                    >↺</button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="settings-item editable">
+                            <span>{t('settings.reopenTab')}</span>
+                            <div className="shortcut-input">
+                                <kbd
+                                    className={recording === 'reopenTab' ? 'recording' : ''}
+                                    onClick={() => startRecording('reopenTab')}
+                                >
+                                    {recording === 'reopenTab' ? t('settings.pressShortcut') : shortcuts.reopenTab}
+                                </kbd>
+                                {shortcuts.reopenTab !== DEFAULT_SHORTCUTS.reopenTab && (
+                                    <button
+                                        className="reset-btn"
+                                        onClick={() => handleResetShortcut('reopenTab')}
                                         title={t('settings.resetDefault')}
                                     >↺</button>
                                 )}
