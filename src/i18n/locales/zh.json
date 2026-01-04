@@ -52,5 +52,14 @@
     "languages": {
         "zh": "简体中文",
         "en": "English"
+    },
+    "trash": {
+        "title": "回收站",
+        "empty": "没有关闭的标签页",
+        "clear": "清空",
+        "justNow": "刚刚",
+        "minutesAgo": "{{count}} 分钟前",
+        "hoursAgo": "{{count}} 小时前",
+        "daysAgo": "{{count}} 天前"
     }
 }

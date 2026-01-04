@@ -5,7 +5,7 @@ import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -16,6 +16,7 @@ function App() {
     const [showSettings, setShowSettings] = useState(false)
     const [currentFont, setCurrentFont] = useState(() => loadFont())
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
+    const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     // 应用字体设置
@@ -53,6 +54,8 @@ function App() {
             const tabToClose = prev.tabs.find(t => t.id === id)
             if (tabToClose) {
                 saveClosedTab(tabToClose)
+                // 刷新回收站列表
+                setClosedTabs(loadClosedTabs())
             }
             const newTabs = prev.tabs.filter(t => t.id !== id)
             const newActiveId = prev.activeTabId === id
@@ -71,7 +74,7 @@ function App() {
         }))
     }, [t])
 
-    // 恢复关闭的标签页
+    // 恢复关闭的标签页（快捷键）
     const handleReopenTab = useCallback(() => {
         const closedTab = popClosedTab()
         if (closedTab) {
@@ -81,7 +84,29 @@ function App() {
                 tabs: [...prev.tabs, tab],
                 activeTabId: tab.id
             }))
+            // 刷新回收站列表
+            setClosedTabs(loadClosedTabs())
         }
+    }, [])
+
+    // 从回收站恢复指定标签页
+    const handleRestoreFromTrash = useCallback((tab: ClosedTab) => {
+        // 从回收站中移除该标签页
+        const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        setClosedTabs(remaining)
+        // 恢复标签页
+        const { closedAt, ...restoredTab } = tab
+        setData(prev => ({
+            tabs: [...prev.tabs, restoredTab],
+            activeTabId: restoredTab.id
+        }))
+    }, [closedTabs])
+
+    // 清空回收站
+    const handleClearTrash = useCallback(() => {
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify([]))
+        setClosedTabs([])
     }, [])
 
     // 切换到下一个标签页
@@ -237,7 +262,12 @@ function App() {
 
     return (
         <div className="app">
-            <TitleBar />
+            <TitleBar
+                closedTabs={closedTabs}
+                onRestoreFromTrash={handleRestoreFromTrash}
+                onClearTrash={handleClearTrash}
+                onOpenSettings={() => setShowSettings(true)}
+            />
             <header className="app-header">
                 <TabBar
                     tabs={data.tabs}
@@ -248,12 +278,6 @@ function App() {
                     onTabRename={handleTabRename}
                     onTabReorder={handleTabReorder}
                 />
-                <button className="settings-btn" onClick={() => setShowSettings(true)}>
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M8 4.754a3.246 3.246 0 1 0 0 6.492 3.246 3.246 0 0 0 0-6.492zM5.754 8a2.246 2.246 0 1 1 4.492 0 2.246 2.246 0 0 1-4.492 0z" />
-                        <path d="M9.796 1.343c-.527-1.79-3.065-1.79-3.592 0l-.094.319a.873.873 0 0 1-1.255.52l-.292-.16c-1.64-.892-3.433.902-2.54 2.541l.159.292a.873.873 0 0 1-.52 1.255l-.319.094c-1.79.527-1.79 3.065 0 3.592l.319.094a.873.873 0 0 1 .52 1.255l-.16.292c-.892 1.64.901 3.434 2.541 2.54l.292-.159a.873.873 0 0 1 1.255.52l.094.319c.527 1.79 3.065 1.79 3.592 0l.094-.319a.873.873 0 0 1 1.255-.52l.292.16c1.64.893 3.434-.902 2.54-2.541l-.159-.292a.873.873 0 0 1 .52-1.255l.319-.094c1.79-.527 1.79-3.065 0-3.592l-.319-.094a.873.873 0 0 1-.52-1.255l.16-.292c.893-1.64-.902-3.433-2.541-2.54l-.292.159a.873.873 0 0 1-1.255-.52l-.094-.319zm-2.633.283c.246-.835 1.428-.835 1.674 0l.094.319a1.873 1.873 0 0 0 2.693 1.115l.291-.16c.764-.415 1.6.42 1.184 1.185l-.159.292a1.873 1.873 0 0 0 1.116 2.692l.318.094c.835.246.835 1.428 0 1.674l-.319.094a1.873 1.873 0 0 0-1.115 2.693l.16.291c.415.764-.42 1.6-1.185 1.184l-.291-.159a1.873 1.873 0 0 0-2.693 1.116l-.094.318c-.246.835-1.428.835-1.674 0l-.094-.319a1.873 1.873 0 0 0-2.692-1.115l-.292.16c-.764.415-1.6-.42-1.184-1.185l.159-.291A1.873 1.873 0 0 0 1.945 8.93l-.319-.094c-.835-.246-.835-1.428 0-1.674l.319-.094A1.873 1.873 0 0 0 3.06 4.377l-.16-.292c-.415-.764.42-1.6 1.185-1.184l.292.159a1.873 1.873 0 0 0 2.692-1.115l.094-.319z" />
-                    </svg>
-                </button>
             </header>
             <main className="app-main">
                 {activeTab && (
