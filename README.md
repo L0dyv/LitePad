@@ -29,10 +29,6 @@
 
 ![LitePad 界面预览](assets/flashpad-reference.png)
 
-**▼ 设置**
-
-![LitePad 设置界面](assets/LitePad_settings_img.png)
-
 ## 开发
 
 ```bash
