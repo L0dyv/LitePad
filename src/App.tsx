@@ -67,11 +67,22 @@ function App() {
 
     // 添加标签页
     const handleTabAdd = useCallback(() => {
-        const newTab = createTab(t('tabBar.newPage'))
-        setData(prev => ({
-            tabs: [...prev.tabs, newTab],
-            activeTabId: newTab.id
-        }))
+        const baseName = t('tabBar.newPage')
+        // 生成唯一名称
+        let newName = baseName
+        let counter = 2
+        setData(prev => {
+            const existingNames = new Set(prev.tabs.map(tab => tab.title))
+            while (existingNames.has(newName)) {
+                newName = `${baseName} ${counter}`
+                counter++
+            }
+            const newTab = createTab(newName)
+            return {
+                tabs: [...prev.tabs, newTab],
+                activeTabId: newTab.id
+            }
+        })
     }, [t])
 
     // 恢复关闭的标签页（快捷键）
