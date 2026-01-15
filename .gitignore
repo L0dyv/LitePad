@@ -22,6 +22,9 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+.*cursor*
+.specstory/
+
 
 # Agent
 .agent/
@@ -35,3 +38,4 @@ release/
 
 # docs
 docs/
+
