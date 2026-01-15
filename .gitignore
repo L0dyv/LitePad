@@ -38,4 +38,5 @@ release/
 
 # docs
 docs/
+.localdocs/
 
