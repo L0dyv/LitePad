@@ -50,10 +50,11 @@ function App() {
     // 关闭标签页
     const handleTabClose = useCallback((id: string) => {
         setData(prev => {
-            // 找到要关闭的标签页并保存到回收站
-            const tabToClose = prev.tabs.find(t => t.id === id)
+            // 找到要关闭的标签页和其位置
+            const tabIndex = prev.tabs.findIndex(t => t.id === id)
+            const tabToClose = prev.tabs[tabIndex]
             if (tabToClose) {
-                saveClosedTab(tabToClose)
+                saveClosedTab(tabToClose, tabIndex)
                 // 刷新回收站列表
                 setClosedTabs(loadClosedTabs())
             }
@@ -89,12 +90,18 @@ function App() {
     const handleReopenTab = useCallback(() => {
         const closedTab = popClosedTab()
         if (closedTab) {
-            // 移除 closedAt 属性，恢复为普通 Tab
-            const { closedAt, ...tab } = closedTab
-            setData(prev => ({
-                tabs: [...prev.tabs, tab],
-                activeTabId: tab.id
-            }))
+            // 移除 closedAt 和 index 属性，恢复为普通 Tab
+            const { closedAt, index, ...tab } = closedTab
+            setData(prev => {
+                const newTabs = [...prev.tabs]
+                // 恢复到原位置，如果位置超出范围则放到末尾
+                const insertIndex = Math.min(index, newTabs.length)
+                newTabs.splice(insertIndex, 0, tab)
+                return {
+                    tabs: newTabs,
+                    activeTabId: tab.id
+                }
+            })
             // 刷新回收站列表
             setClosedTabs(loadClosedTabs())
         }
@@ -106,12 +113,17 @@ function App() {
         const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
         localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
         setClosedTabs(remaining)
-        // 恢复标签页
-        const { closedAt, ...restoredTab } = tab
-        setData(prev => ({
-            tabs: [...prev.tabs, restoredTab],
-            activeTabId: restoredTab.id
-        }))
+        // 恢复标签页到原位置
+        const { closedAt, index, ...restoredTab } = tab
+        setData(prev => {
+            const newTabs = [...prev.tabs]
+            const insertIndex = Math.min(index, newTabs.length)
+            newTabs.splice(insertIndex, 0, restoredTab)
+            return {
+                tabs: newTabs,
+                activeTabId: restoredTab.id
+            }
+        })
     }, [closedTabs])
 
     // 清空回收站
