@@ -42,7 +42,8 @@
         "closeRight": "Close tabs to the right",
         "closeOthers": "Close other tabs",
         "defaultPage": "Default",
-        "newPage": "New Page"
+        "newPage": "New Page",
+        "archive": "Archive"
     },
     "titleBar": {
         "currentDark": "Current: Dark mode",
@@ -67,6 +68,31 @@
         "minutesAgo": "{{count}} min ago",
         "hoursAgo": "{{count}} hr ago",
         "daysAgo": "{{count}} days ago"
+    },
+    "archive": {
+        "title": "Archive",
+        "empty": "No archived tabs",
+        "clear": "Clear",
+        "deleteTooltip": "Delete permanently",
+        "restoreTooltip": "Restore",
+        "clearTitle": "Clear Archive",
+        "clearMessage": "Are you sure you want to clear the archive? This action cannot be undone.",
+        "deleteTitle": "Delete Page",
+        "deleteMessage": "Are you sure you want to permanently delete \"{{name}}\"?",
+        "justNow": "Just now",
+        "minutesAgo": "{{count}} min ago",
+        "hoursAgo": "{{count}} hr ago",
+        "daysAgo": "{{count}} days ago"
+    },
+    "search": {
+        "title": "Search Tabs",
+        "placeholder": "Search by keyword...",
+        "noResults": "No matching tabs found",
+        "activeTabs": "Open",
+        "archivedTabs": "Archived",
+        "closedTabs": "Trash",
+        "navigate": "Navigate",
+        "select": "Select"
     },
     "dialog": {
         "confirm": "Confirm",

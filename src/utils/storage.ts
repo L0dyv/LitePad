@@ -14,6 +14,11 @@ export interface ClosedTab extends Tab {
     index: number  // 原始位置索引
 }
 
+// 已归档的标签页
+export interface ArchivedTab extends Tab {
+    archivedAt: number
+}
+
 export interface AppData {
     tabs: Tab[]
     activeTabId: string
@@ -39,6 +44,7 @@ const STATUSBAR_KEY = 'flashpad-statusbar'
 const FONT_KEY = 'flashpad-font'
 const EDITOR_FONT_KEY = 'flashpad-editor-font'
 const CLOSED_TABS_KEY = 'flashpad-closed-tabs'
+const ARCHIVED_TABS_KEY = 'flashpad-archived-tabs'
 const MAX_CLOSED_TABS = 20  // 最多保留 20 个关闭的标签页
 
 // 默认快捷键
@@ -259,5 +265,56 @@ export function popClosedTab(): ClosedTab | null {
     } catch (e) {
         console.error('从回收站恢复失败:', e)
         return null
+    }
+}
+
+// 加载已归档的标签页
+export function loadArchivedTabs(): ArchivedTab[] {
+    try {
+        const stored = localStorage.getItem(ARCHIVED_TABS_KEY)
+        if (stored) {
+            return JSON.parse(stored)
+        }
+    } catch (e) {
+        console.error('加载归档数据失败:', e)
+    }
+    return []
+}
+
+// 保存标签页到归档
+export function saveArchivedTab(tab: Tab): void {
+    try {
+        const archivedTabs = loadArchivedTabs()
+        const archivedTab: ArchivedTab = {
+            ...tab,
+            archivedAt: Date.now()
+        }
+        // 添加到队列头部（最近归档的在前）
+        archivedTabs.unshift(archivedTab)
+        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify(archivedTabs))
+    } catch (e) {
+        console.error('保存到归档失败:', e)
+    }
+}
+
+// 从归档中移除指定标签页
+export function removeArchivedTab(tab: ArchivedTab): ArchivedTab[] {
+    try {
+        const archivedTabs = loadArchivedTabs()
+        const remaining = archivedTabs.filter(t => !(t.id === tab.id && t.archivedAt === tab.archivedAt))
+        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify(remaining))
+        return remaining
+    } catch (e) {
+        console.error('从归档移除失败:', e)
+        return loadArchivedTabs()
+    }
+}
+
+// 清空所有归档
+export function clearArchivedTabs(): void {
+    try {
+        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify([]))
+    } catch (e) {
+        console.error('清空归档失败:', e)
     }
 }
