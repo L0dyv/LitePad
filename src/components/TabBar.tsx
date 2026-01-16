@@ -15,6 +15,7 @@ interface TabBarProps {
     onTabReorder?: (fromIndex: number, toIndex: number) => void
     closedTabs: ClosedTab[]
     onRestoreFromTrash: (tab: ClosedTab) => void
+    onDeleteFromTrash: (tab: ClosedTab) => void
     onClearTrash: () => void
 }
 
@@ -25,7 +26,7 @@ interface ContextMenuState {
     tabId: string | null
 }
 
-export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder, closedTabs, onRestoreFromTrash, onClearTrash }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder, closedTabs, onRestoreFromTrash, onDeleteFromTrash, onClearTrash }: TabBarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
@@ -241,6 +242,7 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
                     <TrashDropdown
                         closedTabs={closedTabs}
                         onRestore={onRestoreFromTrash}
+                        onDelete={onDeleteFromTrash}
                         onClear={onClearTrash}
                     />
                 </div>
