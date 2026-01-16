@@ -187,6 +187,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 <span>{t('settings.reopenTab')}</span>
                                 <kbd>{shortcuts.reopenTab}</kbd>
                             </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.searchTabs')}</span>
+                                <kbd>{shortcuts.searchTabs}</kbd>
+                            </div>
+                            <div className="settings-item readonly">
+                                <span>{t('settings.archiveTab')}</span>
+                                <kbd>{shortcuts.archiveTab}</kbd>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -318,6 +326,42 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                     <button
                                         className="reset-btn"
                                         onClick={() => handleResetShortcut('reopenTab')}
+                                        title={t('settings.resetDefault')}
+                                    >↺</button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="settings-item editable">
+                            <span>{t('settings.searchTabs')}</span>
+                            <div className="shortcut-input">
+                                <kbd
+                                    className={recording === 'searchTabs' ? 'recording' : ''}
+                                    onClick={() => startRecording('searchTabs')}
+                                >
+                                    {recording === 'searchTabs' ? t('settings.pressShortcut') : shortcuts.searchTabs}
+                                </kbd>
+                                {shortcuts.searchTabs !== DEFAULT_SHORTCUTS.searchTabs && (
+                                    <button
+                                        className="reset-btn"
+                                        onClick={() => handleResetShortcut('searchTabs')}
+                                        title={t('settings.resetDefault')}
+                                    >↺</button>
+                                )}
+                            </div>
+                        </div>
+                        <div className="settings-item editable">
+                            <span>{t('settings.archiveTab')}</span>
+                            <div className="shortcut-input">
+                                <kbd
+                                    className={recording === 'archiveTab' ? 'recording' : ''}
+                                    onClick={() => startRecording('archiveTab')}
+                                >
+                                    {recording === 'archiveTab' ? t('settings.pressShortcut') : shortcuts.archiveTab}
+                                </kbd>
+                                {shortcuts.archiveTab !== DEFAULT_SHORTCUTS.archiveTab && (
+                                    <button
+                                        className="reset-btn"
+                                        onClick={() => handleResetShortcut('archiveTab')}
                                         title={t('settings.resetDefault')}
                                     >↺</button>
                                 )}
