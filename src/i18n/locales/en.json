@@ -58,9 +58,18 @@
         "empty": "No closed tabs",
         "clear": "Clear",
         "deleteTooltip": "Delete permanently",
+        "restoreTooltip": "Restore",
+        "clearTitle": "Clear Trash",
+        "clearMessage": "Are you sure you want to clear the trash? This action cannot be undone.",
+        "deleteTitle": "Delete Page",
+        "deleteMessage": "Are you sure you want to permanently delete \"{{name}}\"?",
         "justNow": "Just now",
         "minutesAgo": "{{count}} min ago",
         "hoursAgo": "{{count}} hr ago",
         "daysAgo": "{{count}} days ago"
+    },
+    "dialog": {
+        "confirm": "Confirm",
+        "cancel": "Cancel"
     }
 }
