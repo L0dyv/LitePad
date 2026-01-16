@@ -42,7 +42,8 @@
         "closeRight": "关闭右侧标签页",
         "closeOthers": "关闭其他标签页",
         "defaultPage": "默认页",
-        "newPage": "新建页"
+        "newPage": "新建页",
+        "archive": "归档"
     },
     "titleBar": {
         "currentDark": "当前: 深色模式",
@@ -67,6 +68,31 @@
         "minutesAgo": "{{count}} 分钟前",
         "hoursAgo": "{{count}} 小时前",
         "daysAgo": "{{count}} 天前"
+    },
+    "archive": {
+        "title": "归档",
+        "empty": "没有归档的标签页",
+        "clear": "清空",
+        "deleteTooltip": "永久删除",
+        "restoreTooltip": "恢复",
+        "clearTitle": "清空归档",
+        "clearMessage": "确定要清空归档吗？此操作不可撤销。",
+        "deleteTitle": "删除页面",
+        "deleteMessage": "确定要永久删除「{{name}}」吗？",
+        "justNow": "刚刚",
+        "minutesAgo": "{{count}} 分钟前",
+        "hoursAgo": "{{count}} 小时前",
+        "daysAgo": "{{count}} 天前"
+    },
+    "search": {
+        "title": "搜索标签页",
+        "placeholder": "输入关键词搜索...",
+        "noResults": "没有找到匹配的标签页",
+        "activeTabs": "打开",
+        "archivedTabs": "归档",
+        "closedTabs": "回收站",
+        "navigate": "导航",
+        "select": "选择"
     },
     "dialog": {
         "confirm": "确定",

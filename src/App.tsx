@@ -5,7 +5,8 @@ import { TabBar } from './components/TabBar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab } from './utils/storage'
+import { TabSearchModal } from './components/TabSearchModal'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -14,9 +15,11 @@ function App() {
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
     const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
+    const [showSearch, setShowSearch] = useState(false)
     const [currentFont, setCurrentFont] = useState(() => loadFont())
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
+    const [archivedTabs, setArchivedTabs] = useState<ArchivedTab[]>(() => loadArchivedTabs())
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
     // 应用字体设置
@@ -139,6 +142,47 @@ function App() {
         setClosedTabs(remaining)
     }, [closedTabs])
 
+    // 归档标签页
+    const handleArchiveTab = useCallback((id: string) => {
+        setData(prev => {
+            const tabToArchive = prev.tabs.find(t => t.id === id)
+            if (tabToArchive) {
+                saveArchivedTab(tabToArchive)
+                setArchivedTabs(loadArchivedTabs())
+            }
+            const newTabs = prev.tabs.filter(t => t.id !== id)
+            // 如果归档的是当前激活的标签页，切换到最后一个
+            const newActiveId = prev.activeTabId === id
+                ? newTabs[newTabs.length - 1]?.id || ''
+                : prev.activeTabId
+            return { tabs: newTabs, activeTabId: newActiveId }
+        })
+    }, [])
+
+    // 从归档恢复标签页
+    const handleRestoreFromArchive = useCallback((tab: ArchivedTab) => {
+        const remaining = removeArchivedTab(tab)
+        setArchivedTabs(remaining)
+        // 恢复标签页
+        const { archivedAt, ...restoredTab } = tab
+        setData(prev => ({
+            tabs: [...prev.tabs, restoredTab],
+            activeTabId: restoredTab.id
+        }))
+    }, [])
+
+    // 从归档删除标签页
+    const handleDeleteFromArchive = useCallback((tab: ArchivedTab) => {
+        const remaining = removeArchivedTab(tab)
+        setArchivedTabs(remaining)
+    }, [])
+
+    // 清空归档
+    const handleClearArchive = useCallback(() => {
+        clearArchivedTabs()
+        setArchivedTabs([])
+    }, [])
+
     // 切换到下一个标签页
     const handleNextTab = useCallback(() => {
         setData(prev => {
@@ -249,6 +293,13 @@ function App() {
                     return
                 }
             }
+
+            // 固定快捷键：Ctrl+P 打开搜索
+            if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p') {
+                e.preventDefault()
+                setShowSearch(true)
+                return
+            }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
@@ -304,10 +355,16 @@ function App() {
                     onTabAdd={handleTabAdd}
                     onTabRename={handleTabRename}
                     onTabReorder={handleTabReorder}
+                    onTabArchive={handleArchiveTab}
                     closedTabs={closedTabs}
                     onRestoreFromTrash={handleRestoreFromTrash}
                     onDeleteFromTrash={handleDeleteFromTrash}
                     onClearTrash={handleClearTrash}
+                    archivedTabs={archivedTabs}
+                    onRestoreFromArchive={handleRestoreFromArchive}
+                    onDeleteFromArchive={handleDeleteFromArchive}
+                    onClearArchive={handleClearArchive}
+                    onOpenSearch={() => setShowSearch(true)}
                 />
             </header>
             <main className="app-main">
@@ -334,6 +391,25 @@ function App() {
                 onFontChange={setCurrentFont}
                 onEditorFontChange={setEditorFont}
                 onLanguageChange={handleLanguageChange}
+            />
+            <TabSearchModal
+                isOpen={showSearch}
+                onClose={() => setShowSearch(false)}
+                tabs={data.tabs}
+                archivedTabs={archivedTabs}
+                closedTabs={closedTabs}
+                onSelectTab={(tab) => {
+                    setData(prev => ({ ...prev, activeTabId: tab.id }))
+                    setShowSearch(false)
+                }}
+                onRestoreArchived={(tab) => {
+                    handleRestoreFromArchive(tab)
+                    setShowSearch(false)
+                }}
+                onRestoreClosed={(tab) => {
+                    handleRestoreFromTrash(tab)
+                    setShowSearch(false)
+                }}
             />
         </div>
     )
