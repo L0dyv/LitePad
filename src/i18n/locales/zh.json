@@ -57,6 +57,7 @@
         "title": "回收站",
         "empty": "没有关闭的标签页",
         "clear": "清空",
+        "deleteTooltip": "永久删除",
         "justNow": "刚刚",
         "minutesAgo": "{{count}} 分钟前",
         "hoursAgo": "{{count}} 小时前",

@@ -57,6 +57,7 @@
         "title": "Trash",
         "empty": "No closed tabs",
         "clear": "Clear",
+        "deleteTooltip": "Delete permanently",
         "justNow": "Just now",
         "minutesAgo": "{{count}} min ago",
         "hoursAgo": "{{count}} hr ago",

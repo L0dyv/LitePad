@@ -6,10 +6,11 @@ import './TrashDropdown.css'
 interface TrashDropdownProps {
     closedTabs: ClosedTab[]
     onRestore: (tab: ClosedTab) => void
+    onDelete: (tab: ClosedTab) => void
     onClear: () => void
 }
 
-export function TrashDropdown({ closedTabs, onRestore, onClear }: TrashDropdownProps) {
+export function TrashDropdown({ closedTabs, onRestore, onDelete, onClear }: TrashDropdownProps) {
     const { t } = useTranslation()
     const [isOpen, setIsOpen] = useState(false)
     const dropdownRef = useRef<HTMLDivElement>(null)
@@ -81,6 +82,19 @@ export function TrashDropdown({ closedTabs, onRestore, onClear }: TrashDropdownP
                                 >
                                     <span className="trash-item-title">{tab.title}</span>
                                     <span className="trash-item-time">{formatTimeAgo(tab.closedAt)}</span>
+                                    <button
+                                        className="trash-item-delete"
+                                        title={t('trash.deleteTooltip')}
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            onDelete(tab)
+                                        }}
+                                    >
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
                                 </div>
                             ))
                         )}

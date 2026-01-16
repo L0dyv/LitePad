@@ -120,6 +120,13 @@ function App() {
         setClosedTabs([])
     }, [])
 
+    // 从回收站删除单个标签页
+    const handleDeleteFromTrash = useCallback((tab: ClosedTab) => {
+        const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        setClosedTabs(remaining)
+    }, [closedTabs])
+
     // 切换到下一个标签页
     const handleNextTab = useCallback(() => {
         setData(prev => {
@@ -287,6 +294,7 @@ function App() {
                     onTabReorder={handleTabReorder}
                     closedTabs={closedTabs}
                     onRestoreFromTrash={handleRestoreFromTrash}
+                    onDeleteFromTrash={handleDeleteFromTrash}
                     onClearTrash={handleClearTrash}
                 />
             </header>
