@@ -29,6 +29,8 @@ export interface ShortcutSettings {
     newTab: string      // 新建标签页
     closeTab: string    // 关闭标签页
     reopenTab: string   // 恢复关闭的标签页
+    searchTabs: string  // 搜索标签页
+    archiveTab: string  // 归档当前标签页
 }
 
 // 状态栏显示配置
@@ -51,7 +53,9 @@ const MAX_CLOSED_TABS = 20  // 最多保留 20 个关闭的标签页
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
     newTab: 'Ctrl+T',
     closeTab: 'Ctrl+W',
-    reopenTab: 'Ctrl+Shift+T'
+    reopenTab: 'Ctrl+Shift+T',
+    searchTabs: 'Ctrl+P',
+    archiveTab: 'Ctrl+M'
 }
 
 // 默认状态栏设置

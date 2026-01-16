@@ -21,6 +21,8 @@
         "newTab": "New tab",
         "closeTab": "Close tab",
         "reopenTab": "Reopen closed tab",
+        "searchTabs": "Search tabs",
+        "archiveTab": "Archive current tab",
         "pressShortcut": "Press shortcut...",
         "resetDefault": "Reset to default",
         "shortcutReference": "Shortcut Reference",
