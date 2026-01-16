@@ -294,16 +294,25 @@ function App() {
                 }
             }
 
-            // 固定快捷键：Ctrl+P 打开搜索
-            if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'p') {
+            // 自定义快捷键：搜索标签页
+            if (matchShortcut(e, shortcuts.searchTabs)) {
                 e.preventDefault()
                 setShowSearch(true)
+                return
+            }
+
+            // 自定义快捷键：归档当前标签页
+            if (matchShortcut(e, shortcuts.archiveTab)) {
+                e.preventDefault()
+                if (data.activeTabId) {
+                    handleArchiveTab(data.activeTabId)
+                }
                 return
             }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleReopenTab, handleNextTab, handlePrevTab, handleSwitchToTab])
+    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleReopenTab, handleNextTab, handlePrevTab, handleSwitchToTab, handleArchiveTab])
 
     // 重命名标签页
     const handleTabRename = (id: string, newTitle: string) => {
@@ -345,6 +354,7 @@ function App() {
         <div className="app">
             <TitleBar
                 onOpenSettings={() => setShowSettings(true)}
+                onOpenSearch={() => setShowSearch(true)}
             />
             <header className="app-header">
                 <TabBar
@@ -364,7 +374,6 @@ function App() {
                     onRestoreFromArchive={handleRestoreFromArchive}
                     onDeleteFromArchive={handleDeleteFromArchive}
                     onClearArchive={handleClearArchive}
-                    onOpenSearch={() => setShowSearch(true)}
                 />
             </header>
             <main className="app-main">

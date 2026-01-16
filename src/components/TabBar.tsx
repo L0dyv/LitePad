@@ -23,7 +23,6 @@ interface TabBarProps {
     onRestoreFromArchive: (tab: ArchivedTab) => void
     onDeleteFromArchive: (tab: ArchivedTab) => void
     onClearArchive: () => void
-    onOpenSearch: () => void
 }
 
 interface ContextMenuState {
@@ -33,7 +32,7 @@ interface ContextMenuState {
     tabId: string | null
 }
 
-export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder, onTabArchive, closedTabs, onRestoreFromTrash, onDeleteFromTrash, onClearTrash, archivedTabs, onRestoreFromArchive, onDeleteFromArchive, onClearArchive, onOpenSearch }: TabBarProps) {
+export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, onTabRename, onTabReorder, onTabArchive, closedTabs, onRestoreFromTrash, onDeleteFromTrash, onClearTrash, archivedTabs, onRestoreFromArchive, onDeleteFromArchive, onClearArchive }: TabBarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
     const [editValue, setEditValue] = useState('')
@@ -257,12 +256,6 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
                     {!isOverflowing && <button className="tab-add" onClick={onTabAdd}>+</button>}
                 </div>
                 <div className="tab-bar-fixed">
-                    <button className="tab-search-btn" onClick={onOpenSearch} title={t('search.title')}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
-                    </button>
                     {isOverflowing && <button className="tab-add" onClick={onTabAdd}>+</button>}
                     <ArchiveDropdown
                         archivedTabs={archivedTabs}
