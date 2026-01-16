@@ -149,6 +149,14 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
         setDragOverIndex(null)
     }
 
+    // 滚轮横向滚动标签栏
+    const handleWheel = (e: React.WheelEvent) => {
+        if (tabBarRef.current && isOverflowing) {
+            e.preventDefault()
+            tabBarRef.current.scrollLeft += e.deltaY
+        }
+    }
+
     const getContextMenuItems = (): MenuItem[] => {
         const tabId = contextMenu.tabId
         const tabIndex = tabs.findIndex(t => t.id === tabId)
@@ -197,7 +205,7 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
     return (
         <>
             <div className="tab-bar-container">
-                <div className="tab-bar" ref={tabBarRef}>
+                <div className="tab-bar" ref={tabBarRef} onWheel={handleWheel}>
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
