@@ -11,6 +11,7 @@ export interface Tab {
 // 已关闭的标签页（用于回收站）
 export interface ClosedTab extends Tab {
     closedAt: number
+    index: number  // 原始位置索引
 }
 
 export interface AppData {
@@ -225,12 +226,13 @@ export function loadClosedTabs(): ClosedTab[] {
 }
 
 // 保存关闭的标签页到回收站
-export function saveClosedTab(tab: Tab): void {
+export function saveClosedTab(tab: Tab, index: number): void {
     try {
         const closedTabs = loadClosedTabs()
         const closedTab: ClosedTab = {
             ...tab,
-            closedAt: Date.now()
+            closedAt: Date.now(),
+            index
         }
         // 添加到队列头部（最近关闭的在前）
         closedTabs.unshift(closedTab)
