@@ -13,5 +13,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setAlwaysOnTop: (enabled: boolean) => ipcRenderer.send('set-always-on-top', enabled),
 
     // 字体相关
-    getSystemFonts: () => ipcRenderer.invoke('get-system-fonts')
+    getSystemFonts: () => ipcRenderer.invoke('get-system-fonts'),
+
+    // 外部链接
+    openExternalUrl: (url: string) => ipcRenderer.send('open-external-url', url),
+
+    // 图片保存
+    saveImage: (buffer: ArrayBuffer, ext: string): Promise<string> =>
+        ipcRenderer.invoke('save-image', buffer, ext)
 })

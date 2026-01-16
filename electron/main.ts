@@ -1,16 +1,23 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain } from 'electron'
-import { join, dirname } from 'path'
-import { existsSync, mkdirSync } from 'fs'
+import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain, shell, protocol, net } from 'electron'
+import { join, dirname, extname } from 'path'
+import { existsSync, mkdirSync, writeFile } from 'fs'
 import { exec } from 'child_process'
 import Store from 'electron-store'
+import { v4 as uuidv4 } from 'uuid'
 
 // Portable 模式：设置用户数据目录到程序目录的 data 文件夹
 const exePath = app.getPath('exe')
 const portableDataPath = join(dirname(exePath), 'data')
 
-// 确保 data 目录存在
+// 确保data 目录存在
 if (!existsSync(portableDataPath)) {
     mkdirSync(portableDataPath, { recursive: true })
+}
+
+// 确保图片目录存在
+const imagesPath = join(portableDataPath, 'images')
+if (!existsSync(imagesPath)) {
+    mkdirSync(imagesPath, { recursive: true })
 }
 
 // 设置 Electron 用户数据目录（影响 localStorage 等）
@@ -182,6 +189,14 @@ function registerShortcuts() {
 
 
 app.whenReady().then(() => {
+    // 注册 litepad:// 自定义协议用于加载本地图片
+    protocol.handle('litepad', (request) => {
+        // litepad://images/xxx.png -> data/images/xxx.png
+        const url = request.url.replace('litepad://', '')
+        const filePath = join(portableDataPath, url)
+        return net.fetch('file://' + filePath)
+    })
+
     createWindow()
     createTray()
     registerShortcuts()
@@ -235,6 +250,31 @@ app.whenReady().then(() => {
                 }
                 const fonts = stdout.trim().split('\n').map(f => f.trim()).filter(f => f.length > 0)
                 resolve(fonts)
+            })
+        })
+    })
+
+    // 打开外部链接
+    ipcMain.on('open-external-url', (_event, url: string) => {
+        // 安全检查：只允许 http 和 https 协议
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            shell.openExternal(url)
+        }
+    })
+
+    // 保存图片到本地
+    ipcMain.handle('save-image', async (_event, buffer: ArrayBuffer, ext: string) => {
+        const filename = `${uuidv4()}${ext}`
+        const filePath = join(imagesPath, filename)
+
+        return new Promise<string>((resolve, reject) => {
+            writeFile(filePath, Buffer.from(buffer), (err) => {
+                if (err) {
+                    reject(err)
+                } else {
+                    // 返回 litepad:// 协议 URL
+                    resolve(`litepad://images/${filename}`)
+                }
             })
         })
     })
