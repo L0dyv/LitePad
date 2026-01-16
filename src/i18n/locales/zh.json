@@ -58,9 +58,18 @@
         "empty": "没有关闭的标签页",
         "clear": "清空",
         "deleteTooltip": "永久删除",
+        "restoreTooltip": "恢复",
+        "clearTitle": "清空回收站",
+        "clearMessage": "确定要清空回收站吗？此操作不可撤销。",
+        "deleteTitle": "删除页面",
+        "deleteMessage": "确定要永久删除「{{name}}」吗？",
         "justNow": "刚刚",
         "minutesAgo": "{{count}} 分钟前",
         "hoursAgo": "{{count}} 小时前",
         "daysAgo": "{{count}} 天前"
+    },
+    "dialog": {
+        "confirm": "确定",
+        "cancel": "取消"
     }
 }
