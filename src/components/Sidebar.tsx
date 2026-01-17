@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Tab, ClosedTab, ArchivedTab } from '../utils/storage'
+import { Tab } from '../utils/storage'
 import { ContextMenu, MenuItem } from './ContextMenu'
-import { TrashDropdown } from './TrashDropdown'
-import { ArchiveDropdown } from './ArchiveDropdown'
+import { ModalTab } from './TabSearchModal'
 import './Sidebar.css'
+
+const SIDEBAR_WIDTH_KEY = 'flashpad-sidebar-width'
+const DEFAULT_WIDTH = 200
+const MIN_WIDTH = 150
+const MAX_WIDTH = 400
 
 interface SidebarProps {
     tabs: Tab[]
@@ -15,14 +19,7 @@ interface SidebarProps {
     onTabRename: (id: string, newTitle: string) => void
     onTabReorder?: (fromIndex: number, toIndex: number) => void
     onTabArchive: (id: string) => void
-    closedTabs: ClosedTab[]
-    onRestoreFromTrash: (tab: ClosedTab) => void
-    onDeleteFromTrash: (tab: ClosedTab) => void
-    onClearTrash: () => void
-    archivedTabs: ArchivedTab[]
-    onRestoreFromArchive: (tab: ArchivedTab) => void
-    onDeleteFromArchive: (tab: ArchivedTab) => void
-    onClearArchive: () => void
+    onOpenModal: (tab: ModalTab) => void
 }
 
 interface ContextMenuState {
@@ -30,6 +27,31 @@ interface ContextMenuState {
     x: number
     y: number
     tabId: string | null
+}
+
+// 加载保存的宽度
+function loadSidebarWidth(): number {
+    try {
+        const saved = localStorage.getItem(SIDEBAR_WIDTH_KEY)
+        if (saved) {
+            const width = parseInt(saved, 10)
+            if (width >= MIN_WIDTH && width <= MAX_WIDTH) {
+                return width
+            }
+        }
+    } catch (e) {
+        console.error('加载侧边栏宽度失败:', e)
+    }
+    return DEFAULT_WIDTH
+}
+
+// 保存宽度
+function saveSidebarWidth(width: number): void {
+    try {
+        localStorage.setItem(SIDEBAR_WIDTH_KEY, width.toString())
+    } catch (e) {
+        console.error('保存侧边栏宽度失败:', e)
+    }
 }
 
 export function Sidebar({
@@ -41,14 +63,7 @@ export function Sidebar({
     onTabRename,
     onTabReorder,
     onTabArchive,
-    closedTabs,
-    onRestoreFromTrash,
-    onDeleteFromTrash,
-    onClearTrash,
-    archivedTabs,
-    onRestoreFromArchive,
-    onDeleteFromArchive,
-    onClearArchive
+    onOpenModal
 }: SidebarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -61,7 +76,10 @@ export function Sidebar({
     })
     const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
     const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
+    const [width, setWidth] = useState(() => loadSidebarWidth())
+    const [isResizing, setIsResizing] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
+    const sidebarRef = useRef<HTMLElement>(null)
 
     // 当进入编辑模式时，聚焦输入框
     useEffect(() => {
@@ -70,6 +88,34 @@ export function Sidebar({
             inputRef.current.select()
         }
     }, [editingId])
+
+    // 拖拽调整宽度
+    const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+        e.preventDefault()
+        setIsResizing(true)
+    }, [])
+
+    useEffect(() => {
+        if (!isResizing) return
+
+        const handleMouseMove = (e: MouseEvent) => {
+            const newWidth = Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, e.clientX))
+            setWidth(newWidth)
+        }
+
+        const handleMouseUp = () => {
+            setIsResizing(false)
+            saveSidebarWidth(width)
+        }
+
+        document.addEventListener('mousemove', handleMouseMove)
+        document.addEventListener('mouseup', handleMouseUp)
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove)
+            document.removeEventListener('mouseup', handleMouseUp)
+        }
+    }, [isResizing, width])
 
     const handleDoubleClick = (tab: Tab) => {
         setEditingId(tab.id)
@@ -208,7 +254,11 @@ export function Sidebar({
 
     return (
         <>
-            <aside className="sidebar">
+            <aside
+                className={`sidebar ${isResizing ? 'resizing' : ''}`}
+                ref={sidebarRef}
+                style={{ width: `${width}px`, minWidth: `${width}px`, maxWidth: `${width}px` }}
+            >
                 <div className="sidebar-tabs">
                     {tabs.map((tab, index) => (
                         <div
@@ -249,25 +299,33 @@ export function Sidebar({
                     ))}
                 </div>
                 <div className="sidebar-footer">
-                    <button className="sidebar-add" onClick={onTabAdd}>
+                    <button className="sidebar-btn" onClick={onTabAdd} title={t('settings.newTab')}>
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                             <line x1="12" y1="5" x2="12" y2="19"></line>
                             <line x1="5" y1="12" x2="19" y2="12"></line>
                         </svg>
                     </button>
-                    <ArchiveDropdown
-                        archivedTabs={archivedTabs}
-                        onRestore={onRestoreFromArchive}
-                        onDelete={onDeleteFromArchive}
-                        onClear={onClearArchive}
-                    />
-                    <TrashDropdown
-                        closedTabs={closedTabs}
-                        onRestore={onRestoreFromTrash}
-                        onDelete={onDeleteFromTrash}
-                        onClear={onClearTrash}
-                    />
+                    <button className="sidebar-btn" onClick={() => onOpenModal('active')} title={t('search.title')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                    </button>
+                    <button className="sidebar-btn" onClick={() => onOpenModal('archived')} title={t('archive.title')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="21 8 21 21 3 21 3 8"></polyline>
+                            <rect x="1" y="3" width="22" height="5"></rect>
+                            <line x1="10" y1="12" x2="14" y2="12"></line>
+                        </svg>
+                    </button>
+                    <button className="sidebar-btn" onClick={() => onOpenModal('closed')} title={t('trash.title')}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </button>
                 </div>
+                <div className="sidebar-resize-handle" onMouseDown={handleResizeMouseDown} />
             </aside>
             {contextMenu.visible && (
                 <ContextMenu

@@ -178,8 +178,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 <kbd>Ctrl + 1~9</kbd>
                             </div>
                             <div className="settings-item readonly">
+                                <span>{t('settings.toggleSidebar')}</span>
+                                <kbd>Ctrl + \</kbd>
+                            </div>
+                            <div className="settings-item readonly">
                                 <span>{t('settings.newTab')}</span>
-                                <kbd>{shortcuts.newTab}</kbd>
+                                <kbd>Ctrl + N / {shortcuts.newTab}</kbd>
                             </div>
                             <div className="settings-item readonly">
                                 <span>{t('settings.closeTab')}</span>

@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Editor } from './components/Editor'
-import { TabBar } from './components/TabBar'
 import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
-import { TabSearchModal } from './components/TabSearchModal'
+import { TabSearchModal, ModalTab } from './components/TabSearchModal'
 import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode } from './utils/storage'
 import './styles/App.css'
 
@@ -17,6 +16,7 @@ function App() {
     const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
     const [showSearch, setShowSearch] = useState(false)
+    const [searchModalTab, setSearchModalTab] = useState<ModalTab>('active')
     const [currentFont, setCurrentFont] = useState(() => loadFont())
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
@@ -24,7 +24,6 @@ function App() {
     const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() => loadZenMode())
     const [isImmersive, setIsImmersive] = useState(false)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-    const immersiveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
     const pointerAccumRef = useRef(0)
 
@@ -256,6 +255,13 @@ function App() {
                 return
             }
 
+            // 固定快捷键：Ctrl+N 新建标签页
+            if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+                e.preventDefault()
+                handleTabAdd()
+                return
+            }
+
             // 自定义快捷键：关闭标签页
             if (matchShortcut(e, shortcuts.closeTab)) {
                 e.preventDefault()
@@ -432,7 +438,6 @@ function App() {
         <div className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
             <TitleBar
                 onOpenSettings={() => setShowSettings(true)}
-                onOpenSearch={() => setShowSearch(true)}
             />
             <div className="app-body">
                 {zenModeSettings.sidebarVisible && (
@@ -445,14 +450,10 @@ function App() {
                         onTabRename={handleTabRename}
                         onTabReorder={handleTabReorder}
                         onTabArchive={handleArchiveTab}
-                        closedTabs={closedTabs}
-                        onRestoreFromTrash={handleRestoreFromTrash}
-                        onDeleteFromTrash={handleDeleteFromTrash}
-                        onClearTrash={handleClearTrash}
-                        archivedTabs={archivedTabs}
-                        onRestoreFromArchive={handleRestoreFromArchive}
-                        onDeleteFromArchive={handleDeleteFromArchive}
-                        onClearArchive={handleClearArchive}
+                        onOpenModal={(tab) => {
+                            setSearchModalTab(tab)
+                            setShowSearch(true)
+                        }}
                     />
                 )}
                 <main className="app-main">
@@ -493,6 +494,7 @@ function App() {
             <TabSearchModal
                 isOpen={showSearch}
                 onClose={() => setShowSearch(false)}
+                defaultTab={searchModalTab}
                 tabs={data.tabs}
                 archivedTabs={archivedTabs}
                 closedTabs={closedTabs}
@@ -500,14 +502,12 @@ function App() {
                     setData(prev => ({ ...prev, activeTabId: tab.id }))
                     setShowSearch(false)
                 }}
-                onRestoreArchived={(tab) => {
-                    handleRestoreFromArchive(tab)
-                    setShowSearch(false)
-                }}
-                onRestoreClosed={(tab) => {
-                    handleRestoreFromTrash(tab)
-                    setShowSearch(false)
-                }}
+                onRestoreArchived={handleRestoreFromArchive}
+                onRestoreClosed={handleRestoreFromTrash}
+                onDeleteArchived={handleDeleteFromArchive}
+                onDeleteClosed={handleDeleteFromTrash}
+                onClearArchive={handleClearArchive}
+                onClearTrash={handleClearTrash}
             />
         </div>
     )

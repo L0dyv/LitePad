@@ -4,10 +4,9 @@ import './TitleBar.css'
 
 interface TitleBarProps {
     onOpenSettings: () => void
-    onOpenSearch: () => void
 }
 
-export function TitleBar({ onOpenSettings, onOpenSearch }: TitleBarProps) {
+export function TitleBar({ onOpenSettings }: TitleBarProps) {
     const { t } = useTranslation()
     const { themeMode, resolvedTheme, toggleTheme } = useTheme()
 
@@ -72,16 +71,6 @@ export function TitleBar({ onOpenSettings, onOpenSearch }: TitleBarProps) {
                 <span className="title-bar-title">{t('app.title')}</span>
             </div>
             <div className="title-bar-controls">
-                <button
-                    className="title-bar-btn search-btn"
-                    onClick={onOpenSearch}
-                    title={t('search.title')}
-                >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="11" cy="11" r="8"></circle>
-                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                    </svg>
-                </button>
                 <button
                     className="title-bar-btn theme-toggle"
                     onClick={toggleTheme}

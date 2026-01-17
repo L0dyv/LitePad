@@ -52,14 +52,12 @@
 /* 沉浸模式：标题栏和状态栏渐隐 */
 .title-bar,
 .app-footer,
-.sidebar-footer,
 .tab-bar-fixed {
     transition: opacity 0.3s ease;
 }
 
 .app.immersive .title-bar,
 .app.immersive .app-footer,
-.app.immersive .sidebar-footer,
 .app.immersive .tab-bar-fixed {
     opacity: 0;
     pointer-events: none;
