@@ -14,7 +14,9 @@
     "security": {
       "assetProtocol": {
         "enable": true,
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       },
       "csp": "default-src 'self'; img-src 'self' asset: https://asset.localhost data:; script-src 'self'; style-src 'self' 'unsafe-inline'"
     },
@@ -27,13 +29,13 @@
         "minHeight": 300,
         "decorations": false,
         "transparent": false,
-        "visible": false,
+        "visible": true,
         "center": true,
         "resizable": true,
         "fullscreen": false,
         "focus": true
       }
-    ],
+    ]
   },
   "bundle": {
     "active": true,
