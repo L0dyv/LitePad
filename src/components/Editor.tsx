@@ -62,8 +62,8 @@ const linkClickHandler = EditorView.domEventHandlers({
     }
 })
 
-// 图片正则表达式：匹配 ![alt](litepad://...)
-const imageRegex = /!\[([^\]]*)\]\((litepad:\/\/[^)]+)\)/g
+// 图片正则表达式：匹配 ![alt](litepad://...) 或 ![alt](asset://...)
+const imageRegex = /!\[([^\]]*)\]\(((?:litepad|asset):\/\/[^)]+)\)/g
 
 // 图片预览 Widget
 class ImageWidget extends WidgetType {

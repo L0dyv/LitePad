@@ -31,8 +31,12 @@ Thumbs.db
 .env
 .env.local
 
-# Electron
+# Electron (legacy)
 release/
+dist-electron/
+
+# Tauri
+src-tauri/target/
 
 # docs
 docs/

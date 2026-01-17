@@ -1,33 +1,35 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import electron from 'vite-plugin-electron/simple'
 import { resolve } from 'path'
 
+// https://vitejs.dev/config/
 export default defineConfig({
-    plugins: [
-        react(),
-        electron({
-            main: {
-                entry: 'electron/main.ts',
-                vite: {
-                    build: {
-                        outDir: 'dist-electron',
-                    }
-                }
-            },
-            preload: {
-                input: 'electron/preload.ts',
-                vite: {
-                    build: {
-                        outDir: 'dist-electron'
-                    }
-                }
-            }
-        })
-    ],
+    plugins: [react()],
     resolve: {
         alias: {
             '@': resolve(__dirname, 'src')
         }
-    }
+    },
+    // Tauri expects a fixed port, fail if not available
+    server: {
+        port: 5173,
+        strictPort: true,
+        watch: {
+            // for hot reload in Tauri
+            ignored: ['**/src-tauri/**']
+        }
+    },
+    // Produce smaller build for Tauri
+    build: {
+        // Tauri uses Chromium on Windows and WebKit on macOS/Linux
+        target: process.env.TAURI_ENV_PLATFORM === 'windows' ? 'chrome105' : 'safari14',
+        // Don't minify for debug builds
+        minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,
+        // Produce sourcemaps for debug builds
+        sourcemap: !!process.env.TAURI_ENV_DEBUG
+    },
+    // Prevent vite from obscuring Rust errors
+    clearScreen: false,
+    // Environment variables
+    envPrefix: ['VITE_', 'TAURI_ENV_']
 })
