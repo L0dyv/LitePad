@@ -182,9 +182,21 @@ function toggleWindow() {
 
 function registerShortcuts() {
     // 注册全局快捷键 Alt+X
-    globalShortcut.register('Alt+X', () => {
+    if (globalShortcut.isRegistered('Alt+X')) {
+        globalShortcut.unregister('Alt+X')
+    }
+    const success = globalShortcut.register('Alt+X', () => {
         toggleWindow()
     })
+    if (!success) {
+        console.warn('[globalShortcut] Alt+X register failed')
+    }
+}
+
+function ensureShortcuts() {
+    if (!globalShortcut.isRegistered('Alt+X')) {
+        registerShortcuts()
+    }
 }
 
 
@@ -201,6 +213,10 @@ app.whenReady().then(() => {
     createWindow()
     createTray()
     registerShortcuts()
+
+    // 窗口聚焦时确保快捷键仍然有效
+    app.on('browser-window-focus', ensureShortcuts)
+    app.on('activate', ensureShortcuts)
 
     // 应用保存的设置
     const settings = store.get('settings')
