@@ -1,13 +1,15 @@
 {
-    "name": "flashpad-self",
-    "version": "0.3.0",
-    "description": "快速、本地、高性能的速效记事本",
-    "main": "dist-electron/main.js",
+    "name": "litepad",
+    "version": "0.4.0",
+    "description": "Fast, local, high-performance scratch pad",
+    "type": "module",
     "scripts": {
-        "dev": "vite",
-        "build": "vite build",
-        "build:win": "vite build && electron-builder --win && node scripts/post-build.js",
-        "preview": "vite preview"
+        "dev:web": "vite",
+        "build:web": "vite build",
+        "preview": "vite preview",
+        "tauri": "tauri",
+        "dev": "tauri dev",
+        "build": "tauri build"
     },
     "dependencies": {
         "@codemirror/commands": "^6.10.1",
@@ -16,7 +18,8 @@
         "@codemirror/search": "^6.5.11",
         "@codemirror/state": "^6.5.3",
         "@codemirror/view": "^6.39.7",
-        "electron-store": "^11.0.2",
+        "@tauri-apps/api": "^2",
+        "@tauri-apps/plugin-shell": "^2",
         "i18next": "^25.7.3",
         "mathjs": "^15.1.0",
         "react": "^18.2.0",
@@ -25,15 +28,12 @@
         "uuid": "^13.0.0"
     },
     "devDependencies": {
+        "@tauri-apps/cli": "^2",
         "@types/react": "^18.2.0",
         "@types/react-dom": "^18.2.0",
         "@types/uuid": "^10.0.0",
         "@vitejs/plugin-react": "^4.2.0",
-        "electron": "^28.0.0",
-        "electron-builder": "^24.9.0",
         "typescript": "^5.3.0",
-        "vite": "^5.0.0",
-        "vite-plugin-electron": "^0.28.0",
-        "vite-plugin-electron-renderer": "^0.14.0"
+        "vite": "^5.0.0"
     }
 }
