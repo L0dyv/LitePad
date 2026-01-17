@@ -1,0 +1,129 @@
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    width: 200px;
+    min-width: 200px;
+    max-width: 200px;
+    background: var(--bg-secondary);
+    border-right: 1px solid var(--border);
+    height: 100%;
+    overflow: hidden;
+}
+
+.sidebar-tabs {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 8px 0;
+}
+
+.sidebar-tab {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    margin: 2px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.sidebar-tab:hover {
+    background: var(--bg-hover);
+}
+
+.sidebar-tab.active {
+    background: var(--bg-active);
+}
+
+.sidebar-tab.dragging {
+    opacity: 0.5;
+}
+
+.sidebar-tab.drag-over {
+    border-top: 2px solid var(--accent);
+    margin-top: 0;
+    padding-top: 6px;
+}
+
+.sidebar-tab-title {
+    flex: 1;
+    font-size: 13px;
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sidebar-tab.active .sidebar-tab-title {
+    color: var(--accent);
+    font-weight: 500;
+}
+
+.sidebar-tab-close {
+    display: none;
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+    margin-left: 4px;
+}
+
+.sidebar-tab:hover .sidebar-tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sidebar-tab-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.sidebar-rename-input {
+    flex: 1;
+    padding: 2px 4px;
+    font-size: 13px;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.sidebar-footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 8px;
+    border-top: 1px solid var(--border);
+}
+
+.sidebar-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.15s ease;
+}
+
+.sidebar-add:hover {
+    background: var(--bg-hover);
+    color: var(--accent);
+}

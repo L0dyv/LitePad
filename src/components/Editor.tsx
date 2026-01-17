@@ -190,11 +190,12 @@ const imageHandler = EditorView.domEventHandlers({
 interface EditorProps {
     content: string
     onChange: (content: string) => void
+    onActivity?: (type: 'typing') => void
     font?: string
     autoFocus?: boolean
 }
 
-export function Editor({ content, onChange, font = 'Consolas', autoFocus = false }: EditorProps) {
+export function Editor({ content, onChange, onActivity, font = 'Consolas', autoFocus = false }: EditorProps) {
     const editorRef = useRef<HTMLDivElement>(null)
     const viewRef = useRef<EditorView | null>(null)
     const isExternalUpdate = useRef(false)
@@ -309,6 +310,7 @@ export function Editor({ content, onChange, font = 'Consolas', autoFocus = false
                 EditorView.updateListener.of((update) => {
                     if (update.docChanged && !isExternalUpdate.current) {
                         onChange(update.state.doc.toString())
+                        onActivity?.('typing')
                     }
                 }),
                 EditorView.lineWrapping,

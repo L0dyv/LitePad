@@ -28,7 +28,10 @@
         "shortcutReference": "快捷键速查",
         "viewShortcuts": "查看全部",
         "about": "关于",
-        "version": "版本"
+        "version": "版本",
+        "zenMode": "禅模式",
+        "zenModeEnabled": "启用禅模式",
+        "toggleSidebar": "切换侧边栏"
     },
     "statusBar": {
         "showShortcuts": "显示快捷键提示",
