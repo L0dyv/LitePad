@@ -17,16 +17,14 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# IDE
+# AI and agent
 .idea/
 .vscode/
 *.swp
 *.swo
 .*cursor*
 .specstory/
-
-
-# Agent
+.claude/
 .agent/
 
 # Environment
