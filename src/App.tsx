@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Editor } from './components/Editor'
 import { TabBar } from './components/TabBar'
+import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
 import { TabSearchModal } from './components/TabSearchModal'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -20,7 +21,12 @@ function App() {
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
     const [archivedTabs, setArchivedTabs] = useState<ArchivedTab[]>(() => loadArchivedTabs())
+    const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() => loadZenMode())
+    const [isImmersive, setIsImmersive] = useState(false)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const immersiveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
+    const pointerAccumRef = useRef(0)
 
     // 应用字体设置
     useEffect(() => {
@@ -309,6 +315,17 @@ function App() {
                 }
                 return
             }
+
+            // 固定快捷键：Ctrl+\ 切换侧边栏
+            if (e.ctrlKey && !e.altKey && !e.shiftKey && e.key === '\\') {
+                e.preventDefault()
+                setZenModeSettings(prev => {
+                    const newSettings = { ...prev, sidebarVisible: !prev.sidebarVisible }
+                    saveZenMode(newSettings)
+                    return newSettings
+                })
+                return
+            }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
@@ -346,47 +363,111 @@ function App() {
         }))
     }
 
+    // 沉浸模式处理：编辑器活动回调
+    const handleEditorActivity = useCallback((type: 'typing') => {
+        if (!zenModeSettings.enabled) return
+
+        if (type === 'typing') {
+            setIsImmersive(true)
+        }
+    }, [zenModeSettings.enabled])
+
+    // 指针水平移动退出沉浸模式（需要明确的水平移动意图）
+    useEffect(() => {
+        if (!isImmersive) return
+
+        const POINTER_STEP_MIN = 4
+        const POINTER_INTENT_THRESHOLD = 90
+        const POINTER_RESET_MS = 250
+
+        const handlePointerMove = (e: PointerEvent | MouseEvent) => {
+            const prev = lastPointerRef.current
+            const now = Date.now()
+            if (!prev) {
+                lastPointerRef.current = { x: e.clientX, y: e.clientY, t: now }
+                pointerAccumRef.current = 0
+                return
+            }
+
+            const dx = e.clientX - prev.x
+            const dy = e.clientY - prev.y
+            const dt = now - prev.t
+            lastPointerRef.current = { x: e.clientX, y: e.clientY, t: now }
+
+            if (dt > POINTER_RESET_MS) {
+                pointerAccumRef.current = 0
+            }
+
+            const absDx = Math.abs(dx)
+            const absDy = Math.abs(dy)
+            if (absDx <= absDy || absDx < POINTER_STEP_MIN) {
+                if (absDy > absDx && pointerAccumRef.current > 0) {
+                    pointerAccumRef.current = 0
+                }
+                return
+            }
+
+            pointerAccumRef.current += absDx
+            if (pointerAccumRef.current >= POINTER_INTENT_THRESHOLD) {
+                pointerAccumRef.current = 0
+                setIsImmersive(false)
+            }
+        }
+
+        window.addEventListener('pointermove', handlePointerMove, { passive: true })
+        window.addEventListener('mousemove', handlePointerMove, { passive: true })
+        return () => {
+            lastPointerRef.current = null
+            pointerAccumRef.current = 0
+            window.removeEventListener('pointermove', handlePointerMove)
+            window.removeEventListener('mousemove', handlePointerMove)
+        }
+    }, [isImmersive])
+
     // 字符统计
     const charCount = activeTab?.content.length || 0
     const lineCount = activeTab?.content.split('\n').length || 1
 
     return (
-        <div className="app">
+        <div className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
             <TitleBar
                 onOpenSettings={() => setShowSettings(true)}
                 onOpenSearch={() => setShowSearch(true)}
             />
-            <header className="app-header">
-                <TabBar
-                    tabs={data.tabs}
-                    activeTabId={data.activeTabId}
-                    onTabClick={handleTabClick}
-                    onTabClose={handleTabClose}
-                    onTabAdd={handleTabAdd}
-                    onTabRename={handleTabRename}
-                    onTabReorder={handleTabReorder}
-                    onTabArchive={handleArchiveTab}
-                    closedTabs={closedTabs}
-                    onRestoreFromTrash={handleRestoreFromTrash}
-                    onDeleteFromTrash={handleDeleteFromTrash}
-                    onClearTrash={handleClearTrash}
-                    archivedTabs={archivedTabs}
-                    onRestoreFromArchive={handleRestoreFromArchive}
-                    onDeleteFromArchive={handleDeleteFromArchive}
-                    onClearArchive={handleClearArchive}
-                />
-            </header>
-            <main className="app-main">
-                {activeTab && (
-                    <Editor
-                        key={`${activeTab.id}-${editorFont}`}
-                        content={activeTab.content}
-                        onChange={handleContentChange}
-                        font={editorFont}
-                        autoFocus
+            <div className="app-body">
+                {zenModeSettings.sidebarVisible && (
+                    <Sidebar
+                        tabs={data.tabs}
+                        activeTabId={data.activeTabId}
+                        onTabClick={handleTabClick}
+                        onTabClose={handleTabClose}
+                        onTabAdd={handleTabAdd}
+                        onTabRename={handleTabRename}
+                        onTabReorder={handleTabReorder}
+                        onTabArchive={handleArchiveTab}
+                        closedTabs={closedTabs}
+                        onRestoreFromTrash={handleRestoreFromTrash}
+                        onDeleteFromTrash={handleDeleteFromTrash}
+                        onClearTrash={handleClearTrash}
+                        archivedTabs={archivedTabs}
+                        onRestoreFromArchive={handleRestoreFromArchive}
+                        onDeleteFromArchive={handleDeleteFromArchive}
+                        onClearArchive={handleClearArchive}
                     />
                 )}
-            </main>
+                <main className="app-main">
+                    {activeTab && (
+                        <Editor
+                            key={`${activeTab.id}-${editorFont}`}
+                            content={activeTab.content}
+                            onChange={handleContentChange}
+                            onActivity={handleEditorActivity}
+                            font={editorFont}
+                            autoFocus
+                        />
+                    )}
+                </main>
+            </div>
             <StatusBar
                 lineCount={lineCount}
                 charCount={charCount}
@@ -400,6 +481,14 @@ function App() {
                 onFontChange={setCurrentFont}
                 onEditorFontChange={setEditorFont}
                 onLanguageChange={handleLanguageChange}
+                zenModeEnabled={zenModeSettings.enabled}
+                onZenModeChange={(enabled) => {
+                    setZenModeSettings(prev => {
+                        const newSettings = { ...prev, enabled }
+                        saveZenMode(newSettings)
+                        return newSettings
+                    })
+                }}
             />
             <TabSearchModal
                 isOpen={showSearch}
@@ -425,4 +514,6 @@ function App() {
 }
 
 export default App
+
+
 

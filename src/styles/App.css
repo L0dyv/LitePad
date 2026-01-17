@@ -5,7 +5,20 @@
     background: var(--bg-primary);
 }
 
-/* 标签栏容器 */
+/* 侧边栏布局：TabBar 在顶部（无侧边栏时） */
+.app-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* 有侧边栏时：横向布局 */
+.app.with-sidebar .app-body {
+    flex-direction: row;
+}
+
+/* 标签栏容器（无侧边栏时显示） */
 .app-header {
     display: flex;
     align-items: center;
@@ -34,4 +47,20 @@
 
 .editor-container .cm-editor {
     height: 100%;
+}
+
+/* 沉浸模式：标题栏和状态栏渐隐 */
+.title-bar,
+.app-footer,
+.sidebar-footer,
+.tab-bar-fixed {
+    transition: opacity 0.3s ease;
+}
+
+.app.immersive .title-bar,
+.app.immersive .app-footer,
+.app.immersive .sidebar-footer,
+.app.immersive .tab-bar-fixed {
+    opacity: 0;
+    pointer-events: none;
 }

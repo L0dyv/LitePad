@@ -12,6 +12,8 @@ interface SettingsProps {
     onFontChange?: (font: string) => void
     onEditorFontChange?: (font: string) => void
     onLanguageChange?: (lang: string) => void
+    zenModeEnabled?: boolean
+    onZenModeChange?: (enabled: boolean) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -38,7 +40,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onLanguageChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onLanguageChange, zenModeEnabled, onZenModeChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -261,6 +263,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 type="checkbox"
                                 checked={alwaysOnTop}
                                 onChange={(e) => handleAlwaysOnTopChange(e.target.checked)}
+                            />
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.zenModeEnabled')}</span>
+                            <input
+                                type="checkbox"
+                                checked={zenModeEnabled ?? true}
+                                onChange={(e) => onZenModeChange?.(e.target.checked)}
                             />
                         </label>
                     </div>

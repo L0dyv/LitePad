@@ -19,6 +19,12 @@ export interface ArchivedTab extends Tab {
     archivedAt: number
 }
 
+// Zen Mode 设置
+export interface ZenModeSettings {
+    sidebarVisible: boolean    // 侧边栏（标签栏）是否可见
+    enabled: boolean           // 是否启用 Zen Mode 功能
+}
+
 export interface AppData {
     tabs: Tab[]
     activeTabId: string
@@ -48,6 +54,7 @@ const EDITOR_FONT_KEY = 'flashpad-editor-font'
 const CLOSED_TABS_KEY = 'flashpad-closed-tabs'
 const ARCHIVED_TABS_KEY = 'flashpad-archived-tabs'
 const MAX_CLOSED_TABS = 20  // 最多保留 20 个关闭的标签页
+const ZEN_MODE_KEY = 'flashpad-zen-mode'
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
@@ -63,6 +70,12 @@ export const DEFAULT_STATUSBAR: StatusBarSettings = {
     showShortcuts: true,
     showLineCount: true,
     showCharCount: true
+}
+
+// 默认 Zen Mode 设置
+export const DEFAULT_ZEN_MODE: ZenModeSettings = {
+    sidebarVisible: true,   // 默认显示水平 TabBar，Ctrl+\ 切换到侧边栏
+    enabled: true
 }
 
 // 默认字体
@@ -322,3 +335,33 @@ export function clearArchivedTabs(): void {
         console.error('清空归档失败:', e)
     }
 }
+
+// 加载 Zen Mode 设置
+export function loadZenMode(): ZenModeSettings {
+    try {
+        // 一次性清除旧设置，确保使用新默认值
+        const migrationKey = 'flashpad-zen-mode-v2'
+        if (!localStorage.getItem(migrationKey)) {
+            localStorage.removeItem(ZEN_MODE_KEY)
+            localStorage.setItem(migrationKey, 'true')
+        }
+
+        const stored = localStorage.getItem(ZEN_MODE_KEY)
+        if (stored) {
+            return { ...DEFAULT_ZEN_MODE, ...JSON.parse(stored) }
+        }
+    } catch (e) {
+        console.error('加载 Zen Mode 设置失败:', e)
+    }
+    return { ...DEFAULT_ZEN_MODE }
+}
+
+// 保存 Zen Mode 设置
+export function saveZenMode(settings: ZenModeSettings): void {
+    try {
+        localStorage.setItem(ZEN_MODE_KEY, JSON.stringify(settings))
+    } catch (e) {
+        console.error('保存 Zen Mode 设置失败:', e)
+    }
+}
+

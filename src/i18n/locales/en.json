@@ -28,7 +28,10 @@
         "shortcutReference": "Shortcut Reference",
         "viewShortcuts": "View All",
         "about": "About",
-        "version": "Version"
+        "version": "Version",
+        "zenMode": "Zen Mode",
+        "zenModeEnabled": "Enable Zen Mode",
+        "toggleSidebar": "Toggle Sidebar"
     },
     "statusBar": {
         "showShortcuts": "Show shortcut hints",

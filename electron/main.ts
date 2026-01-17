@@ -115,6 +115,7 @@ function createWindow() {
             mainWindow?.hide()
         }
     })
+
 }
 
 function saveWindowBounds() {
