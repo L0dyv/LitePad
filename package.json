@@ -1,6 +1,6 @@
 {
     "name": "litepad",
-    "version": "0.4.0",
+    "version": "1.0.0",
     "description": "Fast, local, high-performance scratch pad",
     "type": "module",
     "scripts": {
@@ -9,8 +9,8 @@
         "preview": "vite preview",
         "tauri": "tauri",
         "dev": "tauri dev",
-        "build": "tauri build",
-        "build:portable": "node scripts/build-portable.cjs"
+        "build": "node scripts/build-portable.cjs",
+        "build:tauri": "tauri build"
     },
     "dependencies": {
         "@codemirror/commands": "^6.10.1",

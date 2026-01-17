@@ -51,15 +51,11 @@ if (fs.existsSync(webviewDll)) {
     console.log(`✓ 复制: WebView2Loader.dll`);
 }
 
-// 5. 创建 data 目录（用于便携模式数据存储）
-const dataDir = path.join(destDir, 'data');
-fs.mkdirSync(dataDir, { recursive: true });
-console.log(`✓ 创建: data/ 目录`);
-
-// 6. 获取文件大小
+// 5. 获取文件大小
 const stats = fs.statSync(exeDest);
 const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
 console.log(`\n✅ 构建完成!`);
 console.log(`📁 输出目录: release/LitePad-${version}`);
 console.log(`📊 可执行文件大小: ${sizeMB} MB`);
+console.log(`💡 提示: 首次运行时会自动创建 data/ 目录`);
