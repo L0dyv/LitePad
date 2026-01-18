@@ -220,7 +220,9 @@ export function Sidebar({
             },
             {
                 label: t('tabBar.archive'),
-                onClick: () => onTabArchive(tab.id)
+                onClick: () => {
+                    onTabArchive(tab.id)
+                }
             }
         ]
 

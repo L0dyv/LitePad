@@ -28,7 +28,11 @@ console.log('\n📦 编译 Tauri 应用...');
 try {
     // tauri build 会自动运行 beforeBuildCommand (npm run build:web) 并嵌入 frontendDist
     // 使用 --no-bundle 只编译 exe，不生成安装程序
-    execSync('npm run build:tauri -- --no-bundle', { cwd: projectRoot, stdio: 'inherit' });
+    execSync('npm run build:tauri -- --no-bundle', {
+        cwd: projectRoot,
+        stdio: 'inherit',
+        env: { ...process.env, CI: 'false', TAURI_CI: 'false' }
+    });
 } catch (e) {
     console.error('构建失败:', e.message);
     process.exit(1);

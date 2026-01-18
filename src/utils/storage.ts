@@ -290,7 +290,16 @@ export function loadArchivedTabs(): ArchivedTab[] {
     try {
         const stored = localStorage.getItem(ARCHIVED_TABS_KEY)
         if (stored) {
-            return JSON.parse(stored)
+            const parsed = JSON.parse(stored) as ArchivedTab[]
+            const seen = new Set<string>()
+            const deduped: ArchivedTab[] = []
+            for (const tab of parsed) {
+                if (!seen.has(tab.id)) {
+                    seen.add(tab.id)
+                    deduped.push(tab)
+                }
+            }
+            return deduped
         }
     } catch (e) {
         console.error('加载归档数据失败:', e)
@@ -301,7 +310,11 @@ export function loadArchivedTabs(): ArchivedTab[] {
 // 保存标签页到归档
 export function saveArchivedTab(tab: Tab): void {
     try {
-        const archivedTabs = loadArchivedTabs()
+        let archivedTabs = loadArchivedTabs()
+        const sameIdCount = archivedTabs.filter(t => t.id === tab.id).length
+        if (sameIdCount > 0) {
+            archivedTabs = archivedTabs.filter(t => t.id !== tab.id)
+        }
         const archivedTab: ArchivedTab = {
             ...tab,
             archivedAt: Date.now()
