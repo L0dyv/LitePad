@@ -5,6 +5,8 @@ import { resolve } from 'path'
 // https://vitejs.dev/config/
 export default defineConfig({
     plugins: [react()],
+    // Use relative paths for assets (required for Tauri embedded mode)
+    base: './',
     resolve: {
         alias: {
             '@': resolve(__dirname, 'src')
