@@ -180,7 +180,9 @@ export function TabBar({ tabs, activeTabId, onTabClick, onTabClose, onTabAdd, on
             },
             {
                 label: t('tabBar.archive'),
-                onClick: () => onTabArchive(tab.id)
+                onClick: () => {
+                    onTabArchive(tab.id)
+                }
             }
         ]
 

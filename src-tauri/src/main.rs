@@ -5,10 +5,11 @@ use font_kit::source::SystemSource;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
-    AppHandle, Manager, State,
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     WindowEvent,
@@ -18,15 +19,15 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut}
 use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
 
-// 跟踪窗口是否被隐藏（Tauri的is_visible在Windows上不可靠）
-static WINDOW_HIDDEN: AtomicBool = AtomicBool::new(false);
-
 // App state for portable mode paths
 struct AppState {
     #[allow(dead_code)]
     data_path: PathBuf,
     images_path: PathBuf,
 }
+
+static LAST_SHORTCUT_MS: AtomicU64 = AtomicU64::new(0);
+const SHORTCUT_DEBOUNCE_MS: u64 = 300;
 
 // Settings structure matching electron-store schema
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -65,6 +66,50 @@ impl Default for WindowBounds {
     }
 }
 
+const MIN_WINDOW_WIDTH: u32 = 400;
+const MIN_WINDOW_HEIGHT: u32 = 300;
+
+fn rect_intersects_monitor(
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    monitor: &tauri::Monitor,
+) -> bool {
+    let pos = monitor.position();
+    let size = monitor.size();
+    let mx1 = pos.x;
+    let my1 = pos.y;
+    let mx2 = mx1 + size.width as i32;
+    let my2 = my1 + size.height as i32;
+    let x2 = x + width as i32;
+    let y2 = y + height as i32;
+
+    x < mx2 && x2 > mx1 && y < my2 && y2 > my1
+}
+
+fn ensure_window_on_screen(window: &WebviewWindow) -> bool {
+    let position = window.outer_position().ok();
+    let size = window.outer_size().ok();
+    let monitors = window.available_monitors().unwrap_or_default();
+
+    if let (Some(pos), Some(size)) = (position, size) {
+        if monitors.iter().any(|m| rect_intersects_monitor(pos.x, pos.y, size.width, size.height, m)) {
+            return false;
+        }
+    }
+
+    let _ = window.center();
+    true
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 // Get portable data path (next to executable)
 fn get_portable_data_path() -> PathBuf {
     let exe_path = std::env::current_exe().expect("Failed to get executable path");
@@ -72,16 +117,24 @@ fn get_portable_data_path() -> PathBuf {
     exe_dir.join("data")
 }
 
-// Toggle window visibility using internal state tracking
-// Note: Tauri's is_visible() is unreliable on Windows after hide()
+// Toggle window visibility
+// Strategy: if window has focus, hide it; otherwise show and focus it
 fn toggle_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        if WINDOW_HIDDEN.load(Ordering::SeqCst) {
-            // 窗口当前隐藏，显示它
+    let window = app.get_webview_window("main");
+
+    if let Some(window) = window {
+        // 检查窗口是否有焦点
+        let has_focus = window.is_focused().unwrap_or(false);
+
+        if has_focus {
+            // 窗口有焦点，隐藏它
+            let _ = window.hide();
+        } else {
+            // 窗口无焦点（隐藏/最小化/后台），显示并聚焦
+            ensure_window_on_screen(&window);
             let _ = window.show();
             let _ = window.unminimize();
             let _ = window.set_focus();
-            WINDOW_HIDDEN.store(false, Ordering::SeqCst);
             // Re-apply always on top after show
             if let Ok(store) = app.store("config.json") {
                 if let Some(settings) = store.get("settings") {
@@ -92,10 +145,6 @@ fn toggle_window(app: &AppHandle) {
                     }
                 }
             }
-        } else {
-            // 窗口当前显示，隐藏它
-            let _ = window.hide();
-            WINDOW_HIDDEN.store(true, Ordering::SeqCst);
         }
     }
 }
@@ -278,9 +327,28 @@ fn main() {
             if let Ok(store) = app.store("config.json") {
                 if let Some(bounds_value) = store.get("windowBounds") {
                     if let Ok(bounds) = serde_json::from_value::<WindowBounds>(bounds_value) {
-                        let _ = window.set_size(tauri::LogicalSize::new(bounds.width, bounds.height));
-                        if let (Some(x), Some(y)) = (bounds.x, bounds.y) {
-                            let _ = window.set_position(tauri::LogicalPosition::new(x, y));
+                        let mut width = bounds.width.max(MIN_WINDOW_WIDTH);
+                        let mut height = bounds.height.max(MIN_WINDOW_HEIGHT);
+                        let mut pos = bounds.x.zip(bounds.y);
+
+                        if let Ok(Some(monitor)) = window.primary_monitor() {
+                            let monitor_pos = monitor.position();
+                            let monitor_size = monitor.size();
+                            width = width.min(monitor_size.width);
+                            height = height.min(monitor_size.height);
+
+                            if let Some((x, y)) = pos {
+                                let max_x = monitor_pos.x + monitor_size.width as i32 - width as i32;
+                                let max_y = monitor_pos.y + monitor_size.height as i32 - height as i32;
+                                let clamped_x = x.clamp(monitor_pos.x, max_x);
+                                let clamped_y = y.clamp(monitor_pos.y, max_y);
+                                pos = Some((clamped_x, clamped_y));
+                            }
+                        }
+
+                        let _ = window.set_size(PhysicalSize::new(width, height));
+                        if let Some((x, y)) = pos {
+                            let _ = window.set_position(PhysicalPosition::new(x, y));
                         }
                     }
                 }
@@ -328,9 +396,19 @@ fn main() {
             // Register global shortcut Alt+X
             let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::KeyX);
             let app_handle = app.handle().clone();
-            if let Err(e) = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
+            let register_result = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
+                let now_ms = now_ms();
+                let last_ms = LAST_SHORTCUT_MS.load(Ordering::Relaxed);
+                let delta_ms = now_ms.saturating_sub(last_ms);
+                let accepted = delta_ms >= SHORTCUT_DEBOUNCE_MS;
+                if !accepted {
+                    return;
+                }
+                LAST_SHORTCUT_MS.store(now_ms, Ordering::Relaxed);
                 toggle_window(&app_handle);
-            }) {
+            });
+
+            if let Err(e) = register_result {
                 eprintln!("Warning: Failed to register Alt+X shortcut: {}. Another application may be using it.", e);
             }
 
@@ -357,7 +435,6 @@ fn main() {
                         // Hide instead of close
                         api.prevent_close();
                         let _ = window_clone.hide();
-                        WINDOW_HIDDEN.store(true, Ordering::SeqCst);
                     }
                     _ => {}
                 }
