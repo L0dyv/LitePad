@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     AppHandle, Manager, State,
     menu::{Menu, MenuItem},
@@ -16,6 +17,9 @@ use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
+
+// 跟踪窗口是否被隐藏（Tauri的is_visible在Windows上不可靠）
+static WINDOW_HIDDEN: AtomicBool = AtomicBool::new(false);
 
 // App state for portable mode paths
 struct AppState {
@@ -68,14 +72,16 @@ fn get_portable_data_path() -> PathBuf {
     exe_dir.join("data")
 }
 
-// Toggle window visibility with animation skip
+// Toggle window visibility using internal state tracking
+// Note: Tauri's is_visible() is unreliable on Windows after hide()
 fn toggle_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
-        if window.is_visible().unwrap_or(false) {
-            let _ = window.hide();
-        } else {
+        if WINDOW_HIDDEN.load(Ordering::SeqCst) {
+            // 窗口当前隐藏，显示它
             let _ = window.show();
+            let _ = window.unminimize();
             let _ = window.set_focus();
+            WINDOW_HIDDEN.store(false, Ordering::SeqCst);
             // Re-apply always on top after show
             if let Ok(store) = app.store("config.json") {
                 if let Some(settings) = store.get("settings") {
@@ -86,6 +92,10 @@ fn toggle_window(app: &AppHandle) {
                     }
                 }
             }
+        } else {
+            // 窗口当前显示，隐藏它
+            let _ = window.hide();
+            WINDOW_HIDDEN.store(true, Ordering::SeqCst);
         }
     }
 }
@@ -347,6 +357,7 @@ fn main() {
                         // Hide instead of close
                         api.prevent_close();
                         let _ = window_clone.hide();
+                        WINDOW_HIDDEN.store(true, Ordering::SeqCst);
                     }
                     _ => {}
                 }
