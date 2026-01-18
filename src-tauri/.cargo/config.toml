@@ -1,0 +1,6 @@
+# Use LLD linker for faster link times on Windows
+# Requires: rustup component add llvm-tools-preview
+#
+# Performance: ~2x faster full builds, up to 5x faster incremental builds
+[target.x86_64-pc-windows-msvc]
+linker = "rust-lld.exe"
