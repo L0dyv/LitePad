@@ -16,20 +16,29 @@ const tauriRelease = path.join(projectRoot, 'src-tauri', 'target', 'release');
 
 console.log(`🔨 构建 LitePad v${version} 便携版...`);
 
-// 1. 运行 Tauri 构建（仅编译，不打包安装程序）
+// 1. 运行 Tauri 构建（使用 tauri build 确保前端资源被嵌入）
+// 注意：必须使用 tauri build 而非 cargo build，否则前端资源不会被嵌入到 exe 中
 console.log('\n📦 编译 Tauri 应用...');
 try {
-    execSync('npm run build:web', { cwd: projectRoot, stdio: 'inherit' });
-    execSync('cargo build --release', { cwd: path.join(projectRoot, 'src-tauri'), stdio: 'inherit' });
+    // tauri build 会自动运行 beforeBuildCommand (npm run build:web) 并嵌入 frontendDist
+    // 使用 --no-bundle 只编译 exe，不生成安装程序
+    execSync('npm run build:tauri -- --no-bundle', { cwd: projectRoot, stdio: 'inherit' });
 } catch (e) {
     console.error('构建失败:', e.message);
     process.exit(1);
 }
 
-// 2. 创建目标目录
+// 2. 创建目标目录（如果旧目录存在先尝试删除）
 if (fs.existsSync(destDir)) {
-    fs.rmSync(destDir, { recursive: true });
-    console.log(`\n🗑️  已删除旧目录: LitePad-${version}`);
+    try {
+        fs.rmSync(destDir, { recursive: true });
+        console.log(`\n🗑️  已删除旧目录: LitePad-${version}`);
+    } catch (e) {
+        console.error(`\n⚠️  无法删除旧目录 (可能正在使用中): LitePad-${version}`);
+        console.error(`   请关闭正在运行的 LitePad 后重试，或手动删除该目录`);
+        console.error(`   错误: ${e.message}`);
+        process.exit(1);
+    }
 }
 fs.mkdirSync(destDir, { recursive: true });
 
