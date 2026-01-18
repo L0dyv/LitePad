@@ -25,16 +25,20 @@
 
 ## 截图
 
-**▼ 主界面**
+**主界面**
 
-![LitePad 界面预览](assets/flashpad-reference.png)
+![Normal Mode](assets/flashpad-reference.png)
+
+**Zen Mode**
+
+![LitePad Zen Mode](assets/flashpad-ZenMode.png)
 
 ## 开发
 
 ```bash
 npm install
-npm run dev        # 开发
-npm run build:win  # 打包
+npm run dev    # 开发
+npm run build  # 构建便携版
 ```
 
 ## 许可证

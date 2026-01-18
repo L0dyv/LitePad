@@ -25,17 +25,20 @@ A scratchpad for quick notes. Hotkey to summon, use and go.
 
 ## Screenshots
 
-**▼ Main Interface**
+**Normal Mode**
 
-![LitePad Preview](assets/flashpad-reference.png)
+![Normal Mode](assets/flashpad-reference.png)
 
+**Zen Mode**
+
+![LitePad Zen Mode](assets/flashpad-ZenMode.png)
 
 ## Development
 
 ```bash
 npm install
-npm run dev        # dev
-npm run build:win  # build
+npm run dev    # dev
+npm run build  # build portable
 ```
 
 ## License
