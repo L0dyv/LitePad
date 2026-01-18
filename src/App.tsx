@@ -22,6 +22,8 @@ function App() {
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
     const [archivedTabs, setArchivedTabs] = useState<ArchivedTab[]>(() => loadArchivedTabs())
     const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() => loadZenMode())
+    const [renameRequestToken, setRenameRequestToken] = useState(0)
+    const sidebarWasHiddenRef = useRef(false)
     const [isImmersive, setIsImmersive] = useState(false)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
@@ -332,6 +334,24 @@ function App() {
                 })
                 return
             }
+
+            // 固定快捷键：F2 重命名当前标签页（侧边栏隐藏时自动显示）
+            if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'F2') {
+                e.preventDefault()
+                if (!data.activeTabId) return
+                setZenModeSettings(prev => {
+                    if (prev.sidebarVisible) {
+                        sidebarWasHiddenRef.current = false
+                        return prev
+                    }
+                    sidebarWasHiddenRef.current = true
+                    const newSettings = { ...prev, sidebarVisible: true }
+                    saveZenMode(newSettings)
+                    return newSettings
+                })
+                setRenameRequestToken(prev => prev + 1)
+                return
+            }
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
@@ -346,6 +366,19 @@ function App() {
             )
         }))
     }
+
+    // F2 重命名完成后的回调：重置 token 并恢复侧边栏状态
+    const handleRenameComplete = useCallback(() => {
+        setRenameRequestToken(0)  // 重置 token，防止侧边栏重新挂载时再次进入重命名
+        if (sidebarWasHiddenRef.current) {
+            sidebarWasHiddenRef.current = false
+            setZenModeSettings(prev => {
+                const newSettings = { ...prev, sidebarVisible: false }
+                saveZenMode(newSettings)
+                return newSettings
+            })
+        }
+    }, [])
 
     // 标签页拖拽重新排序
     const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
@@ -450,6 +483,8 @@ function App() {
                         onTabRename={handleTabRename}
                         onTabReorder={handleTabReorder}
                         onTabArchive={handleArchiveTab}
+                        renameRequestToken={renameRequestToken}
+                        onRenameComplete={handleRenameComplete}
                         onOpenModal={(tab) => {
                             setSearchModalTab(tab)
                             setShowSearch(true)

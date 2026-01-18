@@ -78,18 +78,25 @@ const stats = fs.statSync(exeDest);
 const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
 
 // 6. 清理测试目录（如果存在）
-const testDirs = ['LitePad-1.0.0-test', 'LitePad-1.0.0-new'];
-testDirs.forEach(dir => {
-    const testDir = path.join(releaseDir, dir);
-    if (fs.existsSync(testDir)) {
-        try {
-            fs.rmSync(testDir, { recursive: true });
-            console.log(`🧹 清理测试目录: ${dir}`);
-        } catch (e) {
-            // 忽略清理失败
-        }
-    }
-});
+try {
+    const testDirPattern = /^LitePad-\d+\.\d+\.\d+-(test|new)$/;
+    const entries = fs.existsSync(releaseDir)
+        ? fs.readdirSync(releaseDir, { withFileTypes: true })
+        : [];
+    entries
+        .filter((e) => e.isDirectory() && testDirPattern.test(e.name))
+        .forEach((e) => {
+            const testDir = path.join(releaseDir, e.name);
+            try {
+                fs.rmSync(testDir, { recursive: true });
+                console.log(`🧹 清理测试目录: ${e.name}`);
+            } catch (err) {
+                // 忽略清理失败
+            }
+        });
+} catch (e) {
+    // 忽略清理失败
+}
 
 console.log(`\n✅ 构建完成!`);
 console.log(`📁 输出目录: release/LitePad-${version}`);

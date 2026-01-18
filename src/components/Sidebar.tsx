@@ -20,6 +20,8 @@ interface SidebarProps {
     onTabReorder?: (fromIndex: number, toIndex: number) => void
     onTabArchive: (id: string) => void
     onOpenModal: (tab: ModalTab) => void
+    renameRequestToken?: number
+    onRenameComplete?: () => void
 }
 
 interface ContextMenuState {
@@ -63,7 +65,9 @@ export function Sidebar({
     onTabRename,
     onTabReorder,
     onTabArchive,
-    onOpenModal
+    onOpenModal,
+    renameRequestToken,
+    onRenameComplete
 }: SidebarProps) {
     const { t } = useTranslation()
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -80,6 +84,7 @@ export function Sidebar({
     const [isResizing, setIsResizing] = useState(false)
     const inputRef = useRef<HTMLInputElement>(null)
     const sidebarRef = useRef<HTMLElement>(null)
+    const isF2RenameRef = useRef(false)
 
     // 当进入编辑模式时，聚焦输入框
     useEffect(() => {
@@ -88,6 +93,17 @@ export function Sidebar({
             inputRef.current.select()
         }
     }, [editingId])
+
+    // App 侧请求：进入当前标签页重命名（F2）
+    useEffect(() => {
+        if (!renameRequestToken) return
+        if (!activeTabId) return
+        const tab = tabs.find(t => t.id === activeTabId)
+        if (!tab) return
+        isF2RenameRef.current = true
+        setEditingId(tab.id)
+        setEditValue(tab.title)
+    }, [renameRequestToken])
 
     // 拖拽调整宽度
     const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
@@ -128,11 +144,19 @@ export function Sidebar({
         }
         setEditingId(null)
         setEditValue('')
+        if (isF2RenameRef.current) {
+            isF2RenameRef.current = false
+            onRenameComplete?.()
+        }
     }
 
     const handleRenameCancel = () => {
         setEditingId(null)
         setEditValue('')
+        if (isF2RenameRef.current) {
+            isF2RenameRef.current = false
+            onRenameComplete?.()
+        }
     }
 
     const handleKeyDown = (e: React.KeyboardEvent, id: string) => {

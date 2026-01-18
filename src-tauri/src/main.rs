@@ -5,9 +5,8 @@ use font_kit::source::SystemSource;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{
     AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow,
     menu::{Menu, MenuItem},
@@ -15,9 +14,10 @@ use tauri::{
     WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
+
 
 // App state for portable mode paths
 struct AppState {
@@ -26,8 +26,7 @@ struct AppState {
     images_path: PathBuf,
 }
 
-static LAST_SHORTCUT_MS: AtomicU64 = AtomicU64::new(0);
-const SHORTCUT_DEBOUNCE_MS: u64 = 300;
+static SHORTCUT_HELD: AtomicBool = AtomicBool::new(false);
 
 // Settings structure matching electron-store schema
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -103,12 +102,6 @@ fn ensure_window_on_screen(window: &WebviewWindow) -> bool {
     true
 }
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or(0)
-}
 
 // Get portable data path (next to executable)
 fn get_portable_data_path() -> PathBuf {
@@ -118,19 +111,19 @@ fn get_portable_data_path() -> PathBuf {
 }
 
 // Toggle window visibility
-// Strategy: if window has focus, hide it; otherwise show and focus it
+// Strategy: if window is visible (and not minimized), hide it; otherwise show and focus it
 fn toggle_window(app: &AppHandle) {
     let window = app.get_webview_window("main");
 
     if let Some(window) = window {
-        // 检查窗口是否有焦点
-        let has_focus = window.is_focused().unwrap_or(false);
+        let is_visible = window.is_visible().unwrap_or(false);
+        let is_minimized = window.is_minimized().unwrap_or(false);
 
-        if has_focus {
-            // 窗口有焦点，隐藏它
+        if is_visible && !is_minimized {
+            // 窗口可见，隐藏它
             let _ = window.hide();
         } else {
-            // 窗口无焦点（隐藏/最小化/后台），显示并聚焦
+            // 窗口不可见/最小化，显示并聚焦
             ensure_window_on_screen(&window);
             let _ = window.show();
             let _ = window.unminimize();
@@ -396,16 +389,20 @@ fn main() {
             // Register global shortcut Alt+X
             let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::KeyX);
             let app_handle = app.handle().clone();
-            let register_result = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, _event| {
-                let now_ms = now_ms();
-                let last_ms = LAST_SHORTCUT_MS.load(Ordering::Relaxed);
-                let delta_ms = now_ms.saturating_sub(last_ms);
-                let accepted = delta_ms >= SHORTCUT_DEBOUNCE_MS;
-                if !accepted {
-                    return;
+            let register_result = app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
+                match event.state {
+                    ShortcutState::Pressed => {
+                        // 防止按住触发重复 Pressed；并避免 Pressed/Released 双触发导致“闪一下”
+                        let was_held = SHORTCUT_HELD.swap(true, Ordering::Relaxed);
+                        if was_held {
+                            return;
+                        }
+                        toggle_window(&app_handle);
+                    }
+                    ShortcutState::Released => {
+                        SHORTCUT_HELD.store(false, Ordering::Relaxed);
+                    }
                 }
-                LAST_SHORTCUT_MS.store(now_ms, Ordering::Relaxed);
-                toggle_window(&app_handle);
             });
 
             if let Err(e) = register_result {
