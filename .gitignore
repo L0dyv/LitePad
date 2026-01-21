@@ -17,15 +17,6 @@ npm-debug.log*
 .DS_Store
 Thumbs.db
 
-# AI and agent
-.idea/
-.vscode/
-*.swp
-*.swo
-.*cursor*
-.specstory/
-.claude/
-.agent/
 
 # Environment
 .env
@@ -42,3 +33,16 @@ src-tauri/target/
 docs/
 .localdocs/
 
+
+# AI and agent
+.idea/
+.vscode/
+*.swp
+*.swo
+.*cursor*
+.specstory/
+.claude/
+CLAUDE.md
+.agent/
+.gemini*/
+.trae/
