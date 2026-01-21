@@ -50,3 +50,19 @@
     background: var(--danger);
     color: white;
 }
+
+/* 左侧控制区域 */
+.title-bar-left-controls {
+    display: flex;
+    height: 100%;
+    -webkit-app-region: no-drag;
+}
+
+/* 侧边栏切换按钮 */
+.title-bar-btn.sidebar-toggle {
+    width: 36px;
+}
+
+.title-bar-btn.sidebar-toggle.active {
+    color: var(--accent);
+}
