@@ -70,24 +70,24 @@ export function TitleBar({ onOpenSettings, onToggleSidebar, sidebarVisible = tru
 
     return (
         <div className="title-bar">
-            {/* 左侧控制区域 */}
-            <div className="title-bar-left-controls">
+            {/* 左侧：标题 + 侧边栏按钮 */}
+            <div className="title-bar-left">
+                <div className="title-bar-drag">
+                    <span className="title-bar-title">{t('app.title')}</span>
+                </div>
                 {onToggleSidebar && (
                     <button
                         className={`title-bar-btn sidebar-toggle ${sidebarVisible ? 'active' : ''}`}
                         onClick={onToggleSidebar}
                         title={t('titleBar.toggleSidebar')}
                     >
-                        {/* 双栏图标（类似 Notion） */}
+                        {/* 双栏图标 */}
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                             <line x1="9" y1="3" x2="9" y2="21"></line>
                         </svg>
                     </button>
                 )}
-            </div>
-            <div className="title-bar-drag">
-                <span className="title-bar-title">{t('app.title')}</span>
             </div>
             <div className="title-bar-controls">
                 <button
