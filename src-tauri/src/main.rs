@@ -1,23 +1,26 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use chrono::Local;
 use font_kit::source::SystemSource;
 use serde::{Deserialize, Serialize};
 use std::fs;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    WindowEvent,
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent,
 };
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 use tauri_plugin_store::StoreExt;
 use uuid::Uuid;
-
+use walkdir::WalkDir;
+use zip::write::SimpleFileOptions;
+use zip::ZipArchive;
 
 // App state for portable mode paths
 struct AppState {
@@ -65,6 +68,36 @@ impl Default for WindowBounds {
     }
 }
 
+// Backup settings structure
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupSettings {
+    pub backup_directory: Option<String>,
+    pub max_backups: u32,
+    pub auto_backup_enabled: bool,
+    pub auto_backup_interval: u32,
+}
+
+impl Default for BackupSettings {
+    fn default() -> Self {
+        Self {
+            backup_directory: None,
+            max_backups: 5,
+            auto_backup_enabled: false,
+            auto_backup_interval: 30,
+        }
+    }
+}
+
+// Backup info for listing backups
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupInfo {
+    pub filename: String,
+    pub created_at: i64,
+    pub size: u64,
+}
+
 const MIN_WINDOW_WIDTH: u32 = 400;
 const MIN_WINDOW_HEIGHT: u32 = 300;
 
@@ -93,7 +126,10 @@ fn ensure_window_on_screen(window: &WebviewWindow) -> bool {
     let monitors = window.available_monitors().unwrap_or_default();
 
     if let (Some(pos), Some(size)) = (position, size) {
-        if monitors.iter().any(|m| rect_intersects_monitor(pos.x, pos.y, size.width, size.height, m)) {
+        if monitors
+            .iter()
+            .any(|m| rect_intersects_monitor(pos.x, pos.y, size.width, size.height, m))
+        {
             return false;
         }
     }
@@ -102,11 +138,12 @@ fn ensure_window_on_screen(window: &WebviewWindow) -> bool {
     true
 }
 
-
 // Get portable data path (next to executable)
 fn get_portable_data_path() -> PathBuf {
     let exe_path = std::env::current_exe().expect("Failed to get executable path");
-    let exe_dir = exe_path.parent().expect("Failed to get executable directory");
+    let exe_dir = exe_path
+        .parent()
+        .expect("Failed to get executable directory");
     exe_dir.join("data")
 }
 
@@ -173,7 +210,8 @@ async fn set_auto_launch(app: AppHandle, enabled: bool) -> Result<(), String> {
 
     // Save to store
     let store = app.store("config.json").map_err(|e| e.to_string())?;
-    let mut settings: Settings = store.get("settings")
+    let mut settings: Settings = store
+        .get("settings")
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
     settings.auto_launch = enabled;
@@ -186,12 +224,15 @@ async fn set_auto_launch(app: AppHandle, enabled: bool) -> Result<(), String> {
 #[tauri::command]
 async fn set_always_on_top(app: AppHandle, enabled: bool) -> Result<(), String> {
     if let Some(window) = app.get_webview_window("main") {
-        window.set_always_on_top(enabled).map_err(|e| e.to_string())?;
+        window
+            .set_always_on_top(enabled)
+            .map_err(|e| e.to_string())?;
     }
 
     // Save to store
     let store = app.store("config.json").map_err(|e| e.to_string())?;
-    let mut settings: Settings = store.get("settings")
+    let mut settings: Settings = store
+        .get("settings")
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
     settings.always_on_top = enabled;
@@ -242,7 +283,10 @@ async fn save_image(
     fs::write(&file_path, buffer).map_err(|e| e.to_string())?;
 
     // Return asset protocol URL
-    Ok(format!("asset://localhost/{}", file_path.to_string_lossy().replace('\\', "/")))
+    Ok(format!(
+        "asset://localhost/{}",
+        file_path.to_string_lossy().replace('\\', "/")
+    ))
 }
 
 #[tauri::command]
@@ -268,6 +312,272 @@ fn close_window(app: AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.hide();
     }
+}
+
+// Check if path is inside installation directory
+fn is_inside_install_dir(path: &std::path::Path) -> bool {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(exe_dir) = exe_path.parent() {
+            return path.starts_with(exe_dir);
+        }
+    }
+    false
+}
+
+// Select backup directory with installation directory check
+#[tauri::command]
+async fn select_backup_directory(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let folder = app.dialog().file().blocking_pick_folder();
+
+    match folder {
+        Some(file_path) => {
+            let path_buf = file_path.into_path().map_err(|e| e.to_string())?;
+            if is_inside_install_dir(&path_buf) {
+                Err("Cannot select installation directory as backup location".to_string())
+            } else {
+                Ok(Some(path_buf.to_string_lossy().to_string()))
+            }
+        }
+        None => Ok(None),
+    }
+}
+
+// Get backup settings
+#[tauri::command]
+async fn get_backup_settings(app: AppHandle) -> Result<BackupSettings, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    if let Some(value) = store.get("backupSettings") {
+        serde_json::from_value(value).map_err(|e| e.to_string())
+    } else {
+        Ok(BackupSettings::default())
+    }
+}
+
+// Save backup settings
+#[tauri::command]
+async fn set_backup_settings(app: AppHandle, settings: BackupSettings) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    store.set("backupSettings", serde_json::to_value(&settings).unwrap());
+    store.save().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// Clean up old backups
+fn cleanup_old_backups(backup_dir: &str, max_backups: u32) -> Result<(), String> {
+    let mut backups: Vec<_> = fs::read_dir(backup_dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            name.starts_with("litepad_backup_") && name.ends_with(".zip")
+        })
+        .collect();
+
+    // Sort by filename descending (newest first)
+    backups.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+
+    // Delete excess backups
+    for backup in backups.iter().skip(max_backups as usize) {
+        let _ = fs::remove_file(backup.path());
+    }
+
+    Ok(())
+}
+
+// Perform backup
+#[tauri::command]
+async fn perform_backup(
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+    data: String,
+) -> Result<String, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let settings: BackupSettings = store
+        .get("backupSettings")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
+    let backup_dir = settings
+        .backup_directory
+        .ok_or("Backup directory not configured")?;
+    let backup_path = std::path::Path::new(&backup_dir);
+
+    if !backup_path.exists() {
+        fs::create_dir_all(backup_path).map_err(|e| e.to_string())?;
+    }
+
+    // Generate filename with timestamp
+    let timestamp = Local::now().format("%Y%m%d_%H%M%S");
+    let filename = format!("litepad_backup_{}.zip", timestamp);
+    let zip_path = backup_path.join(&filename);
+
+    // Get images path
+    let images_path = {
+        let state = state.lock().unwrap();
+        state.images_path.clone()
+    };
+
+    // Create ZIP file
+    let file = fs::File::create(&zip_path).map_err(|e| e.to_string())?;
+    let mut zip = zip::ZipWriter::new(file);
+    let options = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+
+    // Add data.json
+    zip.start_file("data.json", options)
+        .map_err(|e| e.to_string())?;
+    zip.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+
+    // Add images directory
+    if images_path.exists() {
+        for entry in WalkDir::new(&images_path)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
+            let path = entry.path();
+            if path.is_file() {
+                if let Ok(relative) = path.strip_prefix(&images_path) {
+                    let zip_path_str =
+                        format!("images/{}", relative.to_string_lossy().replace('\\', "/"));
+
+                    zip.start_file(&zip_path_str, options)
+                        .map_err(|e| e.to_string())?;
+                    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+                    let mut buffer = Vec::new();
+                    file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
+                    zip.write_all(&buffer).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+    }
+
+    zip.finish().map_err(|e| e.to_string())?;
+
+    // Clean up old backups
+    cleanup_old_backups(&backup_dir, settings.max_backups)?;
+
+    Ok(filename)
+}
+
+// Get backup list
+#[tauri::command]
+async fn get_backup_list(app: AppHandle) -> Result<Vec<BackupInfo>, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let settings: BackupSettings = store
+        .get("backupSettings")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
+    let backup_dir = match settings.backup_directory {
+        Some(dir) => dir,
+        None => return Ok(vec![]),
+    };
+
+    let backup_path = std::path::Path::new(&backup_dir);
+    if !backup_path.exists() {
+        return Ok(vec![]);
+    }
+
+    let mut backups = Vec::new();
+    for entry in fs::read_dir(&backup_dir).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let filename = entry.file_name().to_string_lossy().to_string();
+
+        if filename.starts_with("litepad_backup_") && filename.ends_with(".zip") {
+            let metadata = entry.metadata().map_err(|e| e.to_string())?;
+            let created_at = metadata
+                .created()
+                .map(|t| t.duration_since(std::time::UNIX_EPOCH).unwrap().as_secs() as i64)
+                .unwrap_or(0);
+
+            backups.push(BackupInfo {
+                filename,
+                created_at,
+                size: metadata.len(),
+            });
+        }
+    }
+
+    // Sort by created_at descending
+    backups.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+
+    Ok(backups)
+}
+
+// Restore backup
+#[tauri::command]
+async fn restore_backup(
+    state: State<'_, Mutex<AppState>>,
+    app: AppHandle,
+    filename: String,
+) -> Result<String, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let settings: BackupSettings = store
+        .get("backupSettings")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
+    let backup_dir = settings
+        .backup_directory
+        .ok_or("Backup directory not configured")?;
+    let zip_path = std::path::Path::new(&backup_dir).join(&filename);
+
+    let file = fs::File::open(&zip_path).map_err(|e| e.to_string())?;
+    let mut archive = ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    // Extract data.json
+    let mut data_json = String::new();
+    {
+        let mut data_file = archive.by_name("data.json").map_err(|e| e.to_string())?;
+        data_file
+            .read_to_string(&mut data_json)
+            .map_err(|e| e.to_string())?;
+    }
+
+    // Extract images
+    let images_path = {
+        let state = state.lock().unwrap();
+        state.images_path.clone()
+    };
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i).map_err(|e| e.to_string())?;
+        let name = file.name().to_string();
+
+        if name.starts_with("images/") && !name.ends_with('/') {
+            if let Some(relative) = name.strip_prefix("images/") {
+                let dest_path = images_path.join(relative);
+
+                if let Some(parent) = dest_path.parent() {
+                    let _ = fs::create_dir_all(parent);
+                }
+
+                let mut dest_file = fs::File::create(&dest_path).map_err(|e| e.to_string())?;
+                std::io::copy(&mut file, &mut dest_file).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+
+    Ok(data_json)
+}
+
+// Delete backup
+#[tauri::command]
+async fn delete_backup(app: AppHandle, filename: String) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let settings: BackupSettings = store
+        .get("backupSettings")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
+    let backup_dir = settings
+        .backup_directory
+        .ok_or("Backup directory not configured")?;
+    let file_path = std::path::Path::new(&backup_dir).join(&filename);
+
+    fs::remove_file(file_path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 fn main() {
@@ -300,6 +610,7 @@ fn main() {
             }
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
         .manage(Mutex::new(app_state))
         .invoke_handler(tauri::generate_handler![
             get_version,
@@ -311,6 +622,13 @@ fn main() {
             minimize_window,
             maximize_window,
             close_window,
+            select_backup_directory,
+            get_backup_settings,
+            set_backup_settings,
+            perform_backup,
+            get_backup_list,
+            restore_backup,
+            delete_backup,
         ])
         .setup(|app| {
             // Get window and configure
