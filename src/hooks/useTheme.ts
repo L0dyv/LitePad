@@ -30,7 +30,7 @@ export function useTheme() {
         if (stored === 'dark' || stored === 'light' || stored === 'system') {
             return stored
         }
-        return 'dark'
+        return 'system'
     })
 
     const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(themeMode))
