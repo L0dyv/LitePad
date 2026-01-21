@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
-import { tauriAPI } from '../lib/tauri-api'
+import { tauriAPI, BackupSettings, BackupInfo } from '../lib/tauri-api'
 import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
 import './Settings.css'
@@ -58,6 +58,17 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [currentEditorFontSize, setCurrentEditorFontSize] = useState(() => loadEditorFontSize())
     const [showShortcutHelp, setShowShortcutHelp] = useState(false)
 
+    // Backup states
+    const [backupSettings, setBackupSettings] = useState<BackupSettings>({
+        backupDirectory: null,
+        maxBackups: 5,
+        autoBackupEnabled: false,
+        autoBackupInterval: 30
+    })
+    const [backupList, setBackupList] = useState<BackupInfo[]>([])
+    const [showBackupList, setShowBackupList] = useState(false)
+    const [backupMessage, setBackupMessage] = useState<string | null>(null)
+
     useEffect(() => {
         // 获取当前设置
         window.electronAPI?.getSettings().then((settings) => {
@@ -77,6 +88,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
             if (fonts && fonts.length > 0) {
                 setSystemFonts(fonts)
             }
+        })
+        // 加载备份设置
+        tauriAPI?.getBackupSettings().then((settings) => {
+            setBackupSettings(settings)
+        })
+        // 加载备份列表
+        tauriAPI?.getBackupList().then((list) => {
+            setBackupList(list)
         })
     }, [isOpen])
 
@@ -156,6 +175,107 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
 
     const startRecording = (key: keyof ShortcutSettings) => {
         setRecording(key)
+    }
+
+    // Backup handlers
+    const handleSelectBackupDirectory = async () => {
+        try {
+            const dir = await tauriAPI?.selectBackupDirectory()
+            if (dir) {
+                const newSettings = { ...backupSettings, backupDirectory: dir }
+                setBackupSettings(newSettings)
+                await tauriAPI?.setBackupSettings(newSettings)
+            }
+        } catch (error) {
+            setBackupMessage(t('settings.invalidBackupDirectory'))
+            setTimeout(() => setBackupMessage(null), 3000)
+        }
+    }
+
+    const handleBackupSettingChange = async <K extends keyof BackupSettings>(key: K, value: BackupSettings[K]) => {
+        const newSettings = { ...backupSettings, [key]: value }
+        setBackupSettings(newSettings)
+        await tauriAPI?.setBackupSettings(newSettings)
+    }
+
+    const collectBackupData = () => {
+        const keys = [
+            'flashpad-data',
+            'flashpad-archived-tabs',
+            'flashpad-closed-tabs',
+            'flashpad-shortcuts',
+            'flashpad-font',
+            'flashpad-editor-font',
+            'flashpad-editor-font-size',
+            'flashpad-zen-mode',
+            'flashpad-statusbar'
+        ]
+        const data: Record<string, string | null> = {}
+        for (const key of keys) {
+            data[key] = localStorage.getItem(key)
+        }
+        return data
+    }
+
+    const handleManualBackup = async () => {
+        if (!backupSettings.backupDirectory) {
+            setBackupMessage(t('settings.notSet'))
+            setTimeout(() => setBackupMessage(null), 3000)
+            return
+        }
+        try {
+            const data = collectBackupData()
+            await tauriAPI?.performBackup(JSON.stringify(data))
+            setBackupMessage(t('settings.backupSuccess'))
+            // Refresh backup list
+            const list = await tauriAPI?.getBackupList()
+            if (list) setBackupList(list)
+        } catch {
+            setBackupMessage(t('settings.backupFailed'))
+        }
+        setTimeout(() => setBackupMessage(null), 3000)
+    }
+
+    const handleRestoreBackup = async (filename: string) => {
+        if (!confirm(t('settings.confirmRestore'))) return
+        try {
+            const dataJson = await tauriAPI?.restoreBackup(filename)
+            if (dataJson) {
+                const data = JSON.parse(dataJson)
+                for (const [key, value] of Object.entries(data)) {
+                    if (value !== null) {
+                        localStorage.setItem(key, value as string)
+                    }
+                }
+                setBackupMessage(t('settings.restoreSuccess'))
+                // Reload the page to apply restored data
+                setTimeout(() => window.location.reload(), 1500)
+            }
+        } catch {
+            setBackupMessage(t('settings.restoreFailed'))
+        }
+        setTimeout(() => setBackupMessage(null), 3000)
+    }
+
+    const handleDeleteBackup = async (filename: string) => {
+        if (!confirm(t('settings.confirmDelete'))) return
+        try {
+            await tauriAPI?.deleteBackup(filename)
+            const list = await tauriAPI?.getBackupList()
+            if (list) setBackupList(list)
+        } catch {
+            // Ignore errors
+        }
+    }
+
+    const formatBackupTime = (timestamp: number) => {
+        return new Date(timestamp * 1000).toLocaleString()
+    }
+
+    const formatBackupSize = (bytes: number) => {
+        if (bytes < 1024) return `${bytes} B`
+        if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+        return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     }
 
     if (!isOpen) return null
@@ -403,6 +523,101 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 )}
                             </div>
                         </div>
+                    </div>
+                    <div className="settings-section">
+                        <h3>{t('settings.backup')}</h3>
+                        {backupMessage && (
+                            <div className="backup-message">{backupMessage}</div>
+                        )}
+                        <div className="settings-item">
+                            <span>{t('settings.backupDirectory')}</span>
+                            <div className="backup-directory-picker">
+                                <span className="directory-path" title={backupSettings.backupDirectory || ''}>
+                                    {backupSettings.backupDirectory || t('settings.notSet')}
+                                </span>
+                                <button className="browse-btn" onClick={handleSelectBackupDirectory}>
+                                    {t('settings.browse')}
+                                </button>
+                            </div>
+                        </div>
+                        <label className="settings-item">
+                            <span>{t('settings.maxBackups')}</span>
+                            <select
+                                value={backupSettings.maxBackups}
+                                onChange={(e) => handleBackupSettingChange('maxBackups', parseInt(e.target.value, 10))}
+                                className="settings-select"
+                            >
+                                {[3, 5, 10, 20, 50].map((n) => (
+                                    <option key={n} value={n}>{n}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.autoBackup')}</span>
+                            <input
+                                type="checkbox"
+                                checked={backupSettings.autoBackupEnabled}
+                                onChange={(e) => handleBackupSettingChange('autoBackupEnabled', e.target.checked)}
+                            />
+                        </label>
+                        {backupSettings.autoBackupEnabled && (
+                            <label className="settings-item">
+                                <span>{t('settings.backupInterval')}</span>
+                                <select
+                                    value={backupSettings.autoBackupInterval}
+                                    onChange={(e) => handleBackupSettingChange('autoBackupInterval', parseInt(e.target.value, 10))}
+                                    className="settings-select"
+                                >
+                                    {[15, 30, 60, 120, 360].map((n) => (
+                                        <option key={n} value={n}>{n} {t('settings.minutes')}</option>
+                                    ))}
+                                </select>
+                            </label>
+                        )}
+                        <div className="settings-item">
+                            <span>{t('settings.manualBackup')}</span>
+                            <button className="backup-btn" onClick={handleManualBackup}>
+                                {t('settings.backupNow')}
+                            </button>
+                        </div>
+                        <div className="settings-item">
+                            <span>{t('settings.backupList')}</span>
+                            <button className="backup-btn" onClick={() => setShowBackupList(!showBackupList)}>
+                                {t('settings.viewBackups')}
+                            </button>
+                        </div>
+                        {showBackupList && (
+                            <div className="backup-list">
+                                {backupList.length === 0 ? (
+                                    <div className="backup-empty">{t('settings.noBackups')}</div>
+                                ) : (
+                                    backupList.map((backup) => (
+                                        <div key={backup.filename} className="backup-item">
+                                            <div className="backup-info">
+                                                <span className="backup-time">{formatBackupTime(backup.createdAt)}</span>
+                                                <span className="backup-size">{formatBackupSize(backup.size)}</span>
+                                            </div>
+                                            <div className="backup-actions">
+                                                <button
+                                                    className="backup-action-btn restore"
+                                                    onClick={() => handleRestoreBackup(backup.filename)}
+                                                    title={t('settings.restore')}
+                                                >
+                                                    ↺
+                                                </button>
+                                                <button
+                                                    className="backup-action-btn delete"
+                                                    onClick={() => handleDeleteBackup(backup.filename)}
+                                                    title={t('settings.delete')}
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        )}
                     </div>
                     <div className="settings-section">
                         <h3>{t('settings.about')}</h3>
