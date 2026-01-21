@@ -128,6 +128,35 @@ export function saveEditorFont(font: string): void {
     }
 }
 
+// 默认编辑器字号
+const EDITOR_FONT_SIZE_KEY = 'flashpad-editor-font-size'
+export const DEFAULT_EDITOR_FONT_SIZE = 14
+
+// 加载编辑器字号设置
+export function loadEditorFontSize(): number {
+    try {
+        const stored = localStorage.getItem(EDITOR_FONT_SIZE_KEY)
+        if (stored) {
+            const size = parseInt(stored, 10)
+            if (size >= 12 && size <= 24) {
+                return size
+            }
+        }
+    } catch (e) {
+        console.error('加载编辑器字号设置失败:', e)
+    }
+    return DEFAULT_EDITOR_FONT_SIZE
+}
+
+// 保存编辑器字号设置
+export function saveEditorFontSize(size: number): void {
+    try {
+        localStorage.setItem(EDITOR_FONT_SIZE_KEY, size.toString())
+    } catch (e) {
+        console.error('保存编辑器字号设置失败:', e)
+    }
+}
+
 // 加载快捷键配置
 export function loadShortcuts(): ShortcutSettings {
     try {

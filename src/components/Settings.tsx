@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont } from '../utils/storage'
+import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import packageJson from '../../package.json'
 import './Settings.css'
@@ -11,6 +11,7 @@ interface SettingsProps {
     onShortcutsChange?: () => void
     onFontChange?: (font: string) => void
     onEditorFontChange?: (font: string) => void
+    onEditorFontSizeChange?: (size: number) => void
     onLanguageChange?: (lang: string) => void
     zenModeEnabled?: boolean
     onZenModeChange?: (enabled: boolean) => void
@@ -40,7 +41,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onLanguageChange, zenModeEnabled, onZenModeChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onLanguageChange, zenModeEnabled, onZenModeChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -52,6 +53,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [systemFonts, setSystemFonts] = useState<string[]>([
         'SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'
     ])
+    const [currentEditorFontSize, setCurrentEditorFontSize] = useState(() => loadEditorFontSize())
     const [showShortcutHelp, setShowShortcutHelp] = useState(false)
 
     useEffect(() => {
@@ -135,6 +137,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         setCurrentEditorFont(font)
         saveEditorFont(font)
         onEditorFontChange?.(font)
+    }
+
+    const handleEditorFontSizeChange = (size: number) => {
+        setCurrentEditorFontSize(size)
+        saveEditorFontSize(size)
+        onEditorFontSizeChange?.(size)
     }
 
     const handleResetShortcut = useCallback((key: keyof ShortcutSettings) => {
@@ -250,6 +258,18 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                             >
                                 {systemFonts.map((font) => (
                                     <option key={font} value={font}>{font}</option>
+                                ))}
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.editorFontSize')}</span>
+                            <select
+                                value={currentEditorFontSize}
+                                onChange={(e) => handleEditorFontSizeChange(parseInt(e.target.value, 10))}
+                                className="settings-select"
+                            >
+                                {[12, 13, 14, 15, 16, 18, 20, 22, 24].map((size) => (
+                                    <option key={size} value={size}>{size}px</option>
                                 ))}
                             </select>
                         </label>

@@ -9,6 +9,7 @@
         "language": "Language",
         "font": "UI Font",
         "editorFont": "Editor Font",
+        "editorFontSize": "Editor Font Size",
         "autoLaunch": "Launch at startup",
         "alwaysOnTop": "Always on top",
         "shortcuts": "Shortcuts",
@@ -53,7 +54,9 @@
     "titleBar": {
         "currentDark": "Current: Dark mode",
         "currentLight": "Current: Light mode",
-        "currentSystem": "Current: Follow system"
+        "currentSystem": "Current: Follow system",
+        "toggleSidebar": "Toggle Sidebar",
+        "search": "Search"
     },
     "languages": {
         "zh": "简体中文",

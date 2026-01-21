@@ -192,10 +192,11 @@ interface EditorProps {
     onChange: (content: string) => void
     onActivity?: (type: 'typing') => void
     font?: string
+    fontSize?: number
     autoFocus?: boolean
 }
 
-export function Editor({ content, onChange, onActivity, font = 'Consolas', autoFocus = false }: EditorProps) {
+export function Editor({ content, onChange, onActivity, font = 'Consolas', fontSize = 14, autoFocus = false }: EditorProps) {
     const editorRef = useRef<HTMLDivElement>(null)
     const viewRef = useRef<EditorView | null>(null)
     const isExternalUpdate = useRef(false)
@@ -207,7 +208,7 @@ export function Editor({ content, onChange, onActivity, font = 'Consolas', autoF
         const theme = EditorView.theme({
             '&': {
                 height: '100%',
-                fontSize: '14px',
+                fontSize: `${fontSize}px`,
                 backgroundColor: 'var(--bg-primary)',
                 color: 'var(--text-primary)'
             },

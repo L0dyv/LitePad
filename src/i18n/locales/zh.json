@@ -9,6 +9,7 @@
         "language": "语言",
         "font": "界面字体",
         "editorFont": "编辑器字体",
+        "editorFontSize": "编辑器字号",
         "autoLaunch": "开机自启动",
         "alwaysOnTop": "窗口置顶",
         "shortcuts": "快捷键",
@@ -53,7 +54,9 @@
     "titleBar": {
         "currentDark": "当前: 深色模式",
         "currentLight": "当前: 浅色模式",
-        "currentSystem": "当前: 跟随系统"
+        "currentSystem": "当前: 跟随系统",
+        "toggleSidebar": "切换侧边栏",
+        "search": "搜索"
     },
     "languages": {
         "zh": "简体中文",
