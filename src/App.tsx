@@ -6,7 +6,7 @@ import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
 import { TabSearchModal, ModalTab } from './components/TabSearchModal'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, loadEditorFontSize, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode } from './utils/storage'
 import './styles/App.css'
 
 function App() {
@@ -19,6 +19,7 @@ function App() {
     const [searchModalTab, setSearchModalTab] = useState<ModalTab>('active')
     const [currentFont, setCurrentFont] = useState(() => loadFont())
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
+    const [editorFontSize, setEditorFontSize] = useState(() => loadEditorFontSize())
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
     const [archivedTabs, setArchivedTabs] = useState<ArchivedTab[]>(() => loadArchivedTabs())
     const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() => loadZenMode())
@@ -471,6 +472,18 @@ function App() {
         <div className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
             <TitleBar
                 onOpenSettings={() => setShowSettings(true)}
+                onToggleSidebar={() => {
+                    setZenModeSettings(prev => {
+                        const newSettings = { ...prev, sidebarVisible: !prev.sidebarVisible }
+                        saveZenMode(newSettings)
+                        return newSettings
+                    })
+                }}
+                sidebarVisible={zenModeSettings.sidebarVisible}
+                onOpenSearch={() => {
+                    setSearchModalTab('active')
+                    setShowSearch(true)
+                }}
             />
             <div className="app-body">
                 {zenModeSettings.sidebarVisible && (
@@ -494,11 +507,12 @@ function App() {
                 <main className="app-main">
                     {activeTab && (
                         <Editor
-                            key={`${activeTab.id}-${editorFont}`}
+                            key={`${activeTab.id}-${editorFont}-${editorFontSize}`}
                             content={activeTab.content}
                             onChange={handleContentChange}
                             onActivity={handleEditorActivity}
                             font={editorFont}
+                            fontSize={editorFontSize}
                             autoFocus
                         />
                     )}
@@ -516,6 +530,7 @@ function App() {
                 onShortcutsChange={refreshShortcuts}
                 onFontChange={setCurrentFont}
                 onEditorFontChange={setEditorFont}
+                onEditorFontSizeChange={setEditorFontSize}
                 onLanguageChange={handleLanguageChange}
                 zenModeEnabled={zenModeSettings.enabled}
                 onZenModeChange={(enabled) => {
