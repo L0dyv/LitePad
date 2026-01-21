@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
+import { tauriAPI } from '../lib/tauri-api'
+import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
 import './Settings.css'
 
@@ -408,6 +410,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                             <p><strong>{t('app.title')}</strong></p>
                             <p>{t('settings.version')} {packageJson.version}</p>
                             <p className="text-muted">{t('app.description')}</p>
+                            <button
+                                className="github-link"
+                                onClick={() => tauriAPI?.openExternalUrl('https://github.com/L0dyv/LitePad')}
+                                title="https://github.com/L0dyv/LitePad"
+                            >
+                                <FaGithub size={16} />
+                                <span>GitHub</span>
+                            </button>
                         </div>
                     </div>
                 </div>
