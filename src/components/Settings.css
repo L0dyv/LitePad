@@ -315,3 +315,133 @@
 .github-link svg {
     flex-shrink: 0;
 }
+
+/* Backup styles */
+.backup-message {
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-radius: 4px;
+    font-size: 13px;
+    text-align: center;
+}
+
+.backup-directory-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 200px;
+}
+
+.backup-directory-picker .directory-path {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 120px;
+}
+
+.browse-btn,
+.backup-btn {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.browse-btn:hover,
+.backup-btn:hover {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.backup-list {
+    margin-top: 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.backup-empty {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.backup-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-tertiary);
+}
+
+.backup-item:last-child {
+    border-bottom: none;
+}
+
+.backup-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.backup-time {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.backup-size {
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.backup-actions {
+    display: flex;
+    gap: 4px;
+}
+
+.backup-action-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+}
+
+.backup-action-btn.restore {
+    color: var(--accent);
+}
+
+.backup-action-btn.restore:hover {
+    background: var(--accent);
+    color: var(--bg-primary);
+    border-color: var(--accent);
+}
+
+.backup-action-btn.delete {
+    color: #e74c3c;
+}
+
+.backup-action-btn.delete:hover {
+    background: #e74c3c;
+    color: white;
+    border-color: #e74c3c;
+}
