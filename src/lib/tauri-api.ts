@@ -27,6 +27,14 @@ export interface BackupInfo {
     size: number
 }
 
+// Path validation result interface
+export interface PathValidationResult {
+    isValid: boolean
+    exists: boolean
+    isWritable: boolean
+    errorCode: string | null
+}
+
 // Type declaration for the API
 export interface TauriAPI {
     getVersion: () => Promise<string>
@@ -47,6 +55,8 @@ export interface TauriAPI {
     getBackupList: () => Promise<BackupInfo[]>
     restoreBackup: (filename: string) => Promise<string>
     deleteBackup: (filename: string) => Promise<void>
+    getDefaultBackupDir: () => Promise<string | null>
+    validateBackupPath: (path: string) => Promise<PathValidationResult>
 }
 
 // Check if running in Tauri
@@ -103,7 +113,11 @@ export const tauriAPI: TauriAPI | undefined = isTauri ? {
 
     restoreBackup: (filename: string) => invoke<string>('restore_backup', { filename }),
 
-    deleteBackup: (filename: string) => invoke('delete_backup', { filename })
+    deleteBackup: (filename: string) => invoke('delete_backup', { filename }),
+
+    getDefaultBackupDir: () => invoke<string | null>('get_default_backup_dir'),
+
+    validateBackupPath: (path: string) => invoke<PathValidationResult>('validate_backup_path', { path })
 } : undefined
 
 // For backwards compatibility, also set on window object

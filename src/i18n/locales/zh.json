@@ -58,7 +58,10 @@
         "confirmDeleteTitle": "删除备份",
         "noBackups": "暂无备份",
         "backupTime": "备份时间",
-        "backupSize": "大小"
+        "backupSize": "大小",
+        "default": "默认",
+        "pathNoWritePermission": "备份路径无写入权限",
+        "pathNotAccessible": "备份路径不存在或无法访问"
     },
     "statusBar": {
         "showShortcuts": "显示快捷键提示",
