@@ -81,7 +81,7 @@ pub struct BackupSettings {
 impl Default for BackupSettings {
     fn default() -> Self {
         Self {
-            backup_directory: None,
+            backup_directory: get_default_backup_directory(),
             max_backups: 5,
             auto_backup_enabled: false,
             auto_backup_interval: 30,
@@ -96,6 +96,26 @@ pub struct BackupInfo {
     pub filename: String,
     pub created_at: i64,
     pub size: u64,
+}
+
+// Path validation result
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PathValidationResult {
+    pub is_valid: bool,
+    pub exists: bool,
+    pub is_writable: bool,
+    pub error_code: Option<String>,
+}
+
+// Get default backup directory (Documents/LitePad/Backups)
+fn get_default_backup_directory() -> Option<String> {
+    dirs::document_dir().map(|p| {
+        p.join("LitePad")
+            .join("Backups")
+            .to_string_lossy()
+            .to_string()
+    })
 }
 
 const MIN_WINDOW_WIDTH: u32 = 400;
@@ -580,6 +600,66 @@ async fn delete_backup(app: AppHandle, filename: String) -> Result<(), String> {
     Ok(())
 }
 
+// Get default backup directory
+#[tauri::command]
+fn get_default_backup_dir() -> Option<String> {
+    get_default_backup_directory()
+}
+
+// Validate backup path
+#[tauri::command]
+fn validate_backup_path(path: String) -> PathValidationResult {
+    let path = std::path::Path::new(&path);
+
+    // Check if path exists
+    let exists = path.exists();
+
+    // Check if writable
+    let is_writable = if exists {
+        // Try to create a test file
+        let test_file = path.join(".litepad_write_test");
+        match fs::File::create(&test_file) {
+            Ok(_) => {
+                let _ = fs::remove_file(&test_file);
+                true
+            }
+            Err(_) => false,
+        }
+    } else {
+        // Path doesn't exist, check if parent directory exists and is writable
+        if let Some(parent) = path.parent() {
+            if parent.exists() {
+                let test_file = parent.join(".litepad_write_test");
+                match fs::File::create(&test_file) {
+                    Ok(_) => {
+                        let _ = fs::remove_file(&test_file);
+                        true
+                    }
+                    Err(_) => false,
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    };
+
+    let (is_valid, error_code) = match (exists, is_writable) {
+        (true, true) => (true, None),
+        (true, false) => (false, Some("NO_WRITE_PERMISSION".to_string())),
+        (false, true) => (true, None), // Can be created
+        (false, false) => (false, Some("PATH_NOT_ACCESSIBLE".to_string())),
+    };
+
+    PathValidationResult {
+        is_valid,
+        exists,
+        is_writable,
+        error_code,
+    }
+}
+
 fn main() {
     // Setup portable data path
     let data_path = get_portable_data_path();
@@ -629,6 +709,8 @@ fn main() {
             get_backup_list,
             restore_backup,
             delete_backup,
+            get_default_backup_dir,
+            validate_backup_path,
         ])
         .setup(|app| {
             // Get window and configure

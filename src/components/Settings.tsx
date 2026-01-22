@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
-import { tauriAPI, BackupSettings, BackupInfo } from '../lib/tauri-api'
+import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult } from '../lib/tauri-api'
 import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
 import './Settings.css'
@@ -68,6 +68,8 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [backupList, setBackupList] = useState<BackupInfo[]>([])
     const [showBackupList, setShowBackupList] = useState(false)
     const [backupMessage, setBackupMessage] = useState<string | null>(null)
+    const [pathValidation, setPathValidation] = useState<PathValidationResult | null>(null)
+    const [defaultBackupDir, setDefaultBackupDir] = useState<string | null>(null)
 
     useEffect(() => {
         // 获取当前设置
@@ -92,7 +94,13 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         // 加载备份设置
         tauriAPI?.getBackupSettings().then((settings) => {
             setBackupSettings(settings)
+            // 验证路径
+            if (settings.backupDirectory) {
+                tauriAPI?.validateBackupPath(settings.backupDirectory).then(setPathValidation)
+            }
         })
+        // 加载默认备份路径
+        tauriAPI?.getDefaultBackupDir().then(setDefaultBackupDir)
         // 加载备份列表
         tauriAPI?.getBackupList().then((list) => {
             setBackupList(list)
@@ -185,6 +193,9 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                 const newSettings = { ...backupSettings, backupDirectory: dir }
                 setBackupSettings(newSettings)
                 await tauriAPI?.setBackupSettings(newSettings)
+                // 验证新路径
+                const validation = await tauriAPI?.validateBackupPath(dir)
+                if (validation) setPathValidation(validation)
             }
         } catch (error) {
             setBackupMessage(t('settings.invalidBackupDirectory'))
@@ -532,14 +543,24 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                         <div className="settings-item">
                             <span>{t('settings.backupDirectory')}</span>
                             <div className="backup-directory-picker">
-                                <span className="directory-path" title={backupSettings.backupDirectory || ''}>
-                                    {backupSettings.backupDirectory || t('settings.notSet')}
+                                <span className="directory-path" title={backupSettings.backupDirectory || defaultBackupDir || ''}>
+                                    {backupSettings.backupDirectory || defaultBackupDir || t('settings.notSet')}
+                                    {!backupSettings.backupDirectory && defaultBackupDir && (
+                                        <span className="default-indicator"> ({t('settings.default')})</span>
+                                    )}
                                 </span>
                                 <button className="browse-btn" onClick={handleSelectBackupDirectory}>
                                     {t('settings.browse')}
                                 </button>
                             </div>
                         </div>
+                        {pathValidation && !pathValidation.isValid && (
+                            <div className="path-warning">
+                                {pathValidation.errorCode === 'NO_WRITE_PERMISSION'
+                                    ? t('settings.pathNoWritePermission')
+                                    : t('settings.pathNotAccessible')}
+                            </div>
+                        )}
                         <label className="settings-item">
                             <span>{t('settings.maxBackups')}</span>
                             <select
