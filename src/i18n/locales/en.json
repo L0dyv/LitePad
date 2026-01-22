@@ -58,7 +58,10 @@
         "confirmDeleteTitle": "Delete Backup",
         "noBackups": "No backups",
         "backupTime": "Backup Time",
-        "backupSize": "Size"
+        "backupSize": "Size",
+        "default": "Default",
+        "pathNoWritePermission": "No write permission for backup path",
+        "pathNotAccessible": "Backup path does not exist or is not accessible"
     },
     "statusBar": {
         "showShortcuts": "Show shortcut hints",

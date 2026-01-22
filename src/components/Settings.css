@@ -445,3 +445,21 @@
     color: white;
     border-color: #e74c3c;
 }
+
+/* Path validation warning */
+.path-warning {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: rgba(231, 76, 60, 0.15);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    border-radius: 4px;
+    color: #e74c3c;
+    font-size: 12px;
+}
+
+/* Default path indicator */
+.default-indicator {
+    color: var(--text-secondary);
+    font-size: 11px;
+    opacity: 0.8;
+}
