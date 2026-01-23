@@ -61,7 +61,17 @@
         "backupSize": "Size",
         "default": "Default",
         "pathNoWritePermission": "No write permission for backup path",
-        "pathNotAccessible": "Backup path does not exist or is not accessible"
+        "pathNotAccessible": "Backup path does not exist or is not accessible",
+        "checkUpdate": "Check for Updates",
+        "checkingUpdate": "Checking...",
+        "updateAvailable": "New version available!",
+        "latestVersion": "Latest version",
+        "currentVersion": "Current version",
+        "publishedAt": "Published at",
+        "releaseNotes": "Release notes",
+        "downloadUpdate": "Download Update",
+        "upToDate": "You're up to date",
+        "checkUpdateFailed": "Failed to check for updates"
     },
     "statusBar": {
         "showShortcuts": "Show shortcut hints",

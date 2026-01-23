@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
-import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult } from '../lib/tauri-api'
+import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult, UpdateInfo } from '../lib/tauri-api'
 import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
 import './Settings.css'
@@ -70,6 +70,11 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [backupMessage, setBackupMessage] = useState<string | null>(null)
     const [pathValidation, setPathValidation] = useState<PathValidationResult | null>(null)
     const [defaultBackupDir, setDefaultBackupDir] = useState<string | null>(null)
+
+    // Update check states
+    const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
+    const [checkingUpdate, setCheckingUpdate] = useState(false)
+    const [updateError, setUpdateError] = useState<string | null>(null)
 
     useEffect(() => {
         // 获取当前设置
@@ -276,6 +281,39 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
             if (list) setBackupList(list)
         } catch {
             // Ignore errors
+        }
+    }
+
+    // Update check handlers
+    const handleCheckUpdate = async () => {
+        setCheckingUpdate(true)
+        setUpdateError(null)
+        setUpdateInfo(null)
+
+        try {
+            const info = await tauriAPI?.checkForUpdates()
+            if (info) {
+                setUpdateInfo(info)
+            }
+        } catch (error) {
+            setUpdateError(error as string)
+        } finally {
+            setCheckingUpdate(false)
+        }
+    }
+
+    const handleOpenRelease = () => {
+        if (updateInfo?.releaseUrl) {
+            tauriAPI?.openExternalUrl(updateInfo.releaseUrl)
+        }
+    }
+
+    const formatReleaseDate = (dateString: string | null) => {
+        if (!dateString) return ''
+        try {
+            return new Date(dateString).toLocaleString()
+        } catch {
+            return dateString
         }
     }
 
@@ -646,6 +684,46 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                             <p><strong>{t('app.title')}</strong></p>
                             <p>{t('settings.version')} {packageJson.version}</p>
                             <p className="text-muted">{t('app.description')}</p>
+                            <div className="update-check-section">
+                                <button
+                                    className="check-update-btn"
+                                    onClick={handleCheckUpdate}
+                                    disabled={checkingUpdate}
+                                >
+                                    {checkingUpdate ? t('settings.checkingUpdate') : t('settings.checkUpdate')}
+                                </button>
+                                {updateInfo && (
+                                    <div className={`update-result ${updateInfo.hasUpdate ? 'has-update' : 'no-update'}`}>
+                                        {updateInfo.hasUpdate ? (
+                                            <>
+                                                <p className="update-title">{t('settings.updateAvailable')}</p>
+                                                <p><span className="update-label">{t('settings.latestVersion')}:</span> {updateInfo.latestVersion}</p>
+                                                <p><span className="update-label">{t('settings.currentVersion')}:</span> {updateInfo.currentVersion}</p>
+                                                {updateInfo.publishedAt && (
+                                                    <p><span className="update-label">{t('settings.publishedAt')}:</span> {formatReleaseDate(updateInfo.publishedAt)}</p>
+                                                )}
+                                                {updateInfo.releaseNotes && (
+                                                    <div className="release-notes">
+                                                        <p className="update-label">{t('settings.releaseNotes')}:</p>
+                                                        <div className="release-notes-content">{updateInfo.releaseNotes}</div>
+                                                    </div>
+                                                )}
+                                                <button className="download-update-btn" onClick={handleOpenRelease}>
+                                                    {t('settings.downloadUpdate')}
+                                                </button>
+                                            </>
+                                        ) : (
+                                            <p className="up-to-date">{t('settings.upToDate')}</p>
+                                        )}
+                                    </div>
+                                )}
+                                {updateError && (
+                                    <div className="update-result update-error">
+                                        <p>{t('settings.checkUpdateFailed')}</p>
+                                        <p className="error-detail">{updateError}</p>
+                                    </div>
+                                )}
+                            </div>
                             <button
                                 className="github-link"
                                 onClick={() => tauriAPI?.openExternalUrl('https://github.com/L0dyv/LitePad')}
