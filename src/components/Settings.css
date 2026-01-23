@@ -463,3 +463,126 @@
     font-size: 11px;
     opacity: 0.8;
 }
+
+/* Update check section */
+.update-check-section {
+    margin-top: 12px;
+}
+
+.check-update-btn {
+    padding: 6px 12px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.check-update-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.check-update-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.update-result {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.update-result.has-update {
+    background: rgba(46, 204, 113, 0.1);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.update-result.no-update {
+    background: rgba(52, 152, 219, 0.1);
+    border: 1px solid rgba(52, 152, 219, 0.3);
+}
+
+.update-result.update-error {
+    background: rgba(231, 76, 60, 0.1);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.update-result p {
+    margin: 0 0 4px 0;
+}
+
+.update-result p:last-child {
+    margin-bottom: 0;
+}
+
+.update-title {
+    font-weight: 600;
+    color: #2ecc71;
+    margin-bottom: 8px !important;
+}
+
+.update-label {
+    color: var(--text-secondary);
+}
+
+.up-to-date {
+    color: #3498db;
+    font-weight: 500;
+}
+
+.release-notes {
+    margin-top: 8px;
+}
+
+.release-notes-content {
+    margin-top: 4px;
+    padding: 8px;
+    background: var(--bg-primary);
+    border-radius: 4px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    color: var(--text-secondary);
+}
+
+.download-update-btn {
+    margin-top: 12px;
+    padding: 8px 16px;
+    background: #2ecc71;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.download-update-btn:hover {
+    background: #27ae60;
+}
+
+.error-detail {
+    font-size: 11px;
+    color: #e74c3c;
+    opacity: 0.8;
+}

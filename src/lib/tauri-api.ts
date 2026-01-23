@@ -35,6 +35,16 @@ export interface PathValidationResult {
     errorCode: string | null
 }
 
+// Update info interface
+export interface UpdateInfo {
+    hasUpdate: boolean
+    currentVersion: string
+    latestVersion: string | null
+    releaseUrl: string | null
+    releaseNotes: string | null
+    publishedAt: string | null
+}
+
 // Type declaration for the API
 export interface TauriAPI {
     getVersion: () => Promise<string>
@@ -57,6 +67,8 @@ export interface TauriAPI {
     deleteBackup: (filename: string) => Promise<void>
     getDefaultBackupDir: () => Promise<string | null>
     validateBackupPath: (path: string) => Promise<PathValidationResult>
+    // Update check API
+    checkForUpdates: () => Promise<UpdateInfo>
 }
 
 // Check if running in Tauri
@@ -117,7 +129,9 @@ export const tauriAPI: TauriAPI | undefined = isTauri ? {
 
     getDefaultBackupDir: () => invoke<string | null>('get_default_backup_dir'),
 
-    validateBackupPath: (path: string) => invoke<PathValidationResult>('validate_backup_path', { path })
+    validateBackupPath: (path: string) => invoke<PathValidationResult>('validate_backup_path', { path }),
+
+    checkForUpdates: () => invoke<UpdateInfo>('check_for_updates')
 } : undefined
 
 // For backwards compatibility, also set on window object

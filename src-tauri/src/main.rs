@@ -108,6 +108,53 @@ pub struct PathValidationResult {
     pub error_code: Option<String>,
 }
 
+// Update check structures
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    pub has_update: bool,
+    pub current_version: String,
+    pub latest_version: Option<String>,
+    pub release_url: Option<String>,
+    pub release_notes: Option<String>,
+    pub published_at: Option<String>,
+}
+
+// GitHub API Release Response (只需要部分字段)
+#[derive(Debug, Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    html_url: String,
+    body: Option<String>,
+    published_at: String,
+}
+
+// Compare versions (遵循 semver)
+fn compare_versions(current: &str, latest: &str) -> bool {
+    let current_parts: Vec<u32> = current
+        .trim_start_matches('v')
+        .split('.')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+
+    let latest_parts: Vec<u32> = latest
+        .trim_start_matches('v')
+        .split('.')
+        .filter_map(|s| s.parse().ok())
+        .collect();
+
+    for i in 0..3 {
+        let c = current_parts.get(i).unwrap_or(&0);
+        let l = latest_parts.get(i).unwrap_or(&0);
+        if l > c {
+            return true;
+        } else if l < c {
+            return false;
+        }
+    }
+    false
+}
+
 // Get default backup directory (Documents/LitePad/Backups)
 fn get_default_backup_directory() -> Option<String> {
     dirs::document_dir().map(|p| {
@@ -660,6 +707,50 @@ fn validate_backup_path(path: String) -> PathValidationResult {
     }
 }
 
+// Check for updates
+#[tauri::command]
+async fn check_for_updates() -> Result<UpdateInfo, String> {
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    // GitHub API URL (使用官方 REST API v3)
+    let url = "https://api.github.com/repos/L0dyv/LitePad/releases/latest";
+
+    // 创建 HTTP 客户端
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("LitePad-Update-Checker")
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    // 发送请求
+    let response = client
+        .get(url)
+        .send()
+        .map_err(|e| format!("Network error: {}", e))?;
+
+    // 检查响应状态
+    if !response.status().is_success() {
+        return Err(format!("GitHub API error: {}", response.status()));
+    }
+
+    // 解析 JSON
+    let release: GitHubRelease = response
+        .json()
+        .map_err(|e| format!("Failed to parse response: {}", e))?;
+
+    // 比较版本
+    let has_update = compare_versions(current_version, &release.tag_name);
+
+    Ok(UpdateInfo {
+        has_update,
+        current_version: current_version.to_string(),
+        latest_version: Some(release.tag_name),
+        release_url: Some(release.html_url),
+        release_notes: release.body,
+        published_at: Some(release.published_at),
+    })
+}
+
 fn main() {
     // Setup portable data path
     let data_path = get_portable_data_path();
@@ -711,6 +802,7 @@ fn main() {
             delete_backup,
             get_default_backup_dir,
             validate_backup_path,
+            check_for_updates,
         ])
         .setup(|app| {
             // Get window and configure
