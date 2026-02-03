@@ -6,7 +6,10 @@ import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
 import { StatusBar } from './components/StatusBar'
 import { TabSearchModal, ModalTab } from './components/TabSearchModal'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, loadEditorFontSize, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, loadEditorFontSize, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode, initStorage, refreshCache } from './utils/storage'
+import { initSync, addSyncListener } from './sync'
+import { migrateOldImageUrls, updateVersionRecord } from './utils/migration'
+import { ConflictResolver, Conflict } from './components/ConflictResolver'
 import './styles/App.css'
 
 function App() {
@@ -26,9 +29,188 @@ function App() {
     const [renameRequestToken, setRenameRequestToken] = useState(0)
     const sidebarWasHiddenRef = useRef(false)
     const [isImmersive, setIsImmersive] = useState(false)
+    const [_dbInitialized, setDbInitialized] = useState(false)
+    const [syncConflicts, setSyncConflicts] = useState<Conflict[]>([])
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
     const pointerAccumRef = useRef(0)
+    const appRootRef = useRef<HTMLDivElement>(null)
+
+    // 初始化数据库（从 localStorage 迁移到 IndexedDB）
+    useEffect(() => {
+        initStorage().then(async () => {
+            // 从 IndexedDB 刷新数据
+            let newData = await refreshCache()
+            setData(newData)
+            setClosedTabs(loadClosedTabs())
+            setArchivedTabs(loadArchivedTabs())
+
+            // 执行旧图片 URL 迁移（仅对 < 2.0.0 版本用户）
+            try {
+                const migrationResult = await migrateOldImageUrls()
+                if (migrationResult.migrated > 0) {
+                    // 迁移后重新加载数据
+                    newData = await refreshCache()
+                    setData(newData)
+                }
+            } catch (error) {
+                console.error('图片迁移失败:', error)
+            }
+
+            // 更新版本记录（用于判断后续升级是否需要迁移）
+            updateVersionRecord('2.0.0')
+
+            setDbInitialized(true)
+
+            // 初始化同步
+            initSync().catch(console.error)
+        }).catch(console.error)
+    }, [])
+
+    // 监听同步事件
+    useEffect(() => {
+        const unsubscribe = addSyncListener((event) => {
+            if (event.type === 'conflict' && event.data?.conflicts) {
+                setSyncConflicts(event.data.conflicts)
+            } else if (event.type === 'remote-changes') {
+                // 远程数据有变化，刷新本地数据
+                refreshCache().then(newData => {
+                    setData(newData)
+                }).catch(console.error)
+            }
+        })
+
+        return () => unsubscribe()
+    }, [])
+
+    const collectLayoutMetrics = () => {
+        const getRect = (el: Element | null) => {
+            if (!el) return null
+            const r = (el as HTMLElement).getBoundingClientRect()
+            return {
+                x: Math.round(r.x),
+                y: Math.round(r.y),
+                w: Math.round(r.width),
+                h: Math.round(r.height),
+            }
+        }
+
+        const vv = window.visualViewport
+
+        const appRect = getRect(appRootRef.current)
+        const data = {
+            dpr: window.devicePixelRatio,
+            inner: { w: window.innerWidth, h: window.innerHeight },
+            outer: { w: window.outerWidth, h: window.outerHeight },
+            docEl: { w: document.documentElement.clientWidth, h: document.documentElement.clientHeight },
+            body: { w: document.body.clientWidth, h: document.body.clientHeight },
+            visualViewport: vv
+                ? {
+                    w: Math.round(vv.width),
+                    h: Math.round(vv.height),
+                    offsetTop: Math.round(vv.offsetTop),
+                    offsetLeft: Math.round(vv.offsetLeft),
+                    scale: vv.scale,
+                }
+                : null,
+            rects: {
+                app: appRect,
+                root: getRect(document.getElementById('root')),
+                title: getRect(document.querySelector('.title-bar')),
+                footer: getRect(document.querySelector('.app-footer')),
+                appBody: getRect(document.querySelector('.app-body')),
+                main: getRect(document.querySelector('.app-main')),
+                editorContainer: getRect(document.querySelector('.editor-container')),
+                cmEditor: getRect(document.querySelector('.cm-editor')),
+            },
+            gaps: appRect ? { viewportMinusApp: Math.round(window.innerHeight - appRect.h) } : null,
+        }
+
+        return data
+    }
+
+    useEffect(() => {
+        const runId = 'run1'
+        const state = {
+            isImmersive,
+            zenEnabled: zenModeSettings.enabled,
+            sidebarVisible: zenModeSettings.sidebarVisible,
+        }
+        const metrics = collectLayoutMetrics()
+
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'A', location: 'src/App.tsx:mount', message: 'mount layout metrics', data: { state, metrics }, timestamp: Date.now() }) }).catch(() => { })
+        // #endregion
+
+        let raf1 = 0
+        let raf2 = 0
+        raf1 = requestAnimationFrame(() => {
+            raf2 = requestAnimationFrame(() => {
+                const metrics2 = collectLayoutMetrics()
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'C', location: 'src/App.tsx:raf2', message: 'raf2 layout metrics', data: { state, metrics: metrics2 }, timestamp: Date.now() }) }).catch(() => { })
+                // #endregion
+            })
+        })
+
+        void (async () => {
+            const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+            if (!isTauri) return
+            try {
+                const { getCurrentWindow } = await import('@tauri-apps/api/window')
+                const win = getCurrentWindow()
+                const [innerSize, outerSize, scaleFactor] = await Promise.all([
+                    win.innerSize(),
+                    win.outerSize(),
+                    win.scaleFactor(),
+                ])
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'D', location: 'src/App.tsx:tauriWindow', message: 'tauri window sizes', data: { state, tauri: { innerSize, outerSize, scaleFactor } }, timestamp: Date.now() }) }).catch(() => { })
+                // #endregion
+            } catch (err) {
+                // #region agent log
+                fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'D', location: 'src/App.tsx:tauriWindowError', message: 'tauri window sizes error', data: { state, error: { name: (err as any)?.name, message: (err as any)?.message } }, timestamp: Date.now() }) }).catch(() => { })
+                // #endregion
+            }
+        })()
+
+        return () => {
+            if (raf1) cancelAnimationFrame(raf1)
+            if (raf2) cancelAnimationFrame(raf2)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
+    useEffect(() => {
+        const runId = 'run1'
+        const onResize = () => {
+            const state = {
+                isImmersive,
+                zenEnabled: zenModeSettings.enabled,
+                sidebarVisible: zenModeSettings.sidebarVisible,
+            }
+            const metrics = collectLayoutMetrics()
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'A', location: 'src/App.tsx:resize', message: 'window resize', data: { state, metrics }, timestamp: Date.now() }) }).catch(() => { })
+            // #endregion
+        }
+
+        window.addEventListener('resize', onResize)
+        return () => window.removeEventListener('resize', onResize)
+    }, [isImmersive, zenModeSettings.enabled, zenModeSettings.sidebarVisible])
+
+    useEffect(() => {
+        const runId = 'run1'
+        const state = {
+            isImmersive,
+            zenEnabled: zenModeSettings.enabled,
+            sidebarVisible: zenModeSettings.sidebarVisible,
+        }
+        const metrics = collectLayoutMetrics()
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: 'debug-session', runId, hypothesisId: 'B', location: 'src/App.tsx:immersive', message: 'immersive state changed', data: { state, metrics }, timestamp: Date.now() }) }).catch(() => { })
+        // #endregion
+    }, [isImmersive])
 
     // 应用字体设置
     useEffect(() => {
@@ -469,7 +651,7 @@ function App() {
     const lineCount = activeTab?.content.split('\n').length || 1
 
     return (
-        <div className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
+        <div ref={appRootRef} className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
             <TitleBar
                 onOpenSettings={() => setShowSettings(true)}
                 onToggleSidebar={() => {
@@ -559,6 +741,17 @@ function App() {
                 onClearArchive={handleClearArchive}
                 onClearTrash={handleClearTrash}
             />
+            {syncConflicts.length > 0 && (
+                <ConflictResolver
+                    conflicts={syncConflicts}
+                    onResolved={() => {
+                        refreshCache().then(newData => {
+                            setData(newData)
+                        }).catch(console.error)
+                    }}
+                    onClose={() => setSyncConflicts([])}
+                />
+            )}
         </div>
     )
 }

@@ -6,6 +6,7 @@ import { searchKeymap, highlightSelectionMatches } from '@codemirror/search'
 import { markdown } from '@codemirror/lang-markdown'
 import { syntaxHighlighting, defaultHighlightStyle } from '@codemirror/language'
 import { evaluate } from 'mathjs'
+import { putAttachment, type Attachment } from '../db'
 
 // URL 正则表达式
 const urlRegex = /https?:\/\/[^\s<>"'()\[\]]+/g
@@ -62,8 +63,8 @@ const linkClickHandler = EditorView.domEventHandlers({
     }
 })
 
-// 图片正则表达式：匹配 ![alt](litepad://...) 或 ![alt](asset://...)
-const imageRegex = /!\[([^\]]*)\]\(((?:litepad|asset):\/\/[^)]+)\)/g
+// 图片正则表达式：匹配 ![alt](litepad://images/...) 或 ![alt](asset://...)（兼容旧格式）
+const imageRegex = /!\[([^\]]*)\]\(((?:litepad:\/\/images\/|asset:\/\/)[^)]+)\)/g
 
 // 图片预览 Widget
 class ImageWidget extends WidgetType {
@@ -141,11 +142,26 @@ const processImageFile = async (file: File, view: EditorView) => {
     try {
         const buffer = await file.arrayBuffer()
         const ext = '.' + (file.type.split('/')[1] || 'png').replace('jpeg', 'jpg')
-        const url = await window.electronAPI?.saveImage(buffer, ext)
+        const result = await window.electronAPI?.saveImage(buffer, ext)
 
-        if (url) {
+        if (result) {
+            // 保存附件元数据到 IndexedDB
+            const attachment: Attachment = {
+                hash: result.hash,
+                filename: file.name,
+                mimeType: file.type,
+                size: result.size,
+                ext: result.ext,
+                localPath: '', // 由 Tauri 管理
+                syncStatus: 'pending',
+                createdAt: Date.now(),
+                syncedAt: null
+            }
+            await putAttachment(attachment)
+
+            // 插入 Markdown 图片引用
             const pos = view.state.selection.main.head
-            const imageMarkdown = `![${file.name}](${url})`
+            const imageMarkdown = `![${file.name}](${result.url})`
             view.dispatch({
                 changes: { from: pos, insert: imageMarkdown + '\n' },
                 selection: { anchor: pos + imageMarkdown.length + 1 }

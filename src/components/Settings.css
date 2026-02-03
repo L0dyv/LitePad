@@ -503,6 +503,7 @@
         opacity: 0;
         transform: translateY(-4px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -585,4 +586,96 @@
     font-size: 11px;
     color: #e74c3c;
     opacity: 0.8;
+}
+
+/* Sync styles */
+.sync-status {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.sync-status-connected {
+    background: rgba(46, 204, 113, 0.15);
+    color: #2ecc71;
+}
+
+.sync-status-connecting,
+.sync-status-syncing {
+    background: rgba(241, 196, 15, 0.15);
+    color: #f1c40f;
+}
+
+.sync-status-disconnected {
+    background: rgba(149, 165, 166, 0.15);
+    color: #95a5a6;
+}
+
+.sync-status-error {
+    background: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+
+.sync-last-time,
+.sync-account {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.sync-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.sync-btn {
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text-primary);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.sync-btn:hover:not(:disabled) {
+    background: var(--bg-hover);
+    border-color: var(--text-secondary);
+}
+
+.sync-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sync-btn.logout {
+    color: #e74c3c;
+    border-color: rgba(231, 76, 60, 0.3);
+}
+
+.sync-btn.logout:hover {
+    background: rgba(231, 76, 60, 0.1);
+    border-color: #e74c3c;
+}
+
+.sync-hint {
+    padding: 10px 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+.sync-advanced {
+    margin-top: 8px;
+}
+
+.sync-advanced .settings-item {
+    background: var(--bg-primary);
+}
+
+.sync-advanced .settings-input {
+    min-width: 180px;
 }

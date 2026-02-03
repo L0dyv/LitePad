@@ -45,6 +45,22 @@ export interface UpdateInfo {
     publishedAt: string | null
 }
 
+// Save image result interface
+export interface SaveImageResult {
+    hash: string
+    url: string
+    size: number
+    ext: string
+}
+
+// Migrate image result interface
+export interface MigrateImageResult {
+    hash: string
+    ext: string
+    size: number
+    newUrl: string
+}
+
 // Type declaration for the API
 export interface TauriAPI {
     getVersion: () => Promise<string>
@@ -56,7 +72,15 @@ export interface TauriAPI {
     setAlwaysOnTop: (enabled: boolean) => Promise<void>
     getSystemFonts: () => Promise<string[]>
     openExternalUrl: (url: string) => void
-    saveImage: (buffer: ArrayBuffer, ext: string) => Promise<string>
+    // Image APIs (hash-based)
+    saveImage: (buffer: ArrayBuffer, ext: string) => Promise<SaveImageResult>
+    getImagePath: (hash: string, ext: string) => Promise<string>
+    hasImage: (hash: string, ext: string) => Promise<boolean>
+    saveDownloadedImage: (hash: string, ext: string, buffer: ArrayBuffer) => Promise<string>
+    readImage: (hash: string, ext: string) => Promise<Uint8Array>
+    // Migration APIs
+    migrateOldImage: (oldPath: string) => Promise<MigrateImageResult>
+    checkOldImagesExist: (paths: string[]) => Promise<boolean[]>
     // Backup APIs
     selectBackupDirectory: () => Promise<string | null>
     getBackupSettings: () => Promise<BackupSettings>
@@ -106,11 +130,33 @@ export const tauriAPI: TauriAPI | undefined = isTauri ? {
 
     saveImage: async (buffer: ArrayBuffer, ext: string) => {
         const uint8Array = new Uint8Array(buffer)
-        return invoke<string>('save_image', {
+        return invoke<SaveImageResult>('save_image', {
             buffer: Array.from(uint8Array),
             ext
         })
     },
+
+    getImagePath: (hash: string, ext: string) => invoke<string>('get_image_path', { hash, ext }),
+
+    hasImage: (hash: string, ext: string) => invoke<boolean>('has_image', { hash, ext }),
+
+    saveDownloadedImage: async (hash: string, ext: string, buffer: ArrayBuffer) => {
+        const uint8Array = new Uint8Array(buffer)
+        return invoke<string>('save_downloaded_image', {
+            hash,
+            ext,
+            buffer: Array.from(uint8Array)
+        })
+    },
+
+    readImage: async (hash: string, ext: string) => {
+        const result = await invoke<number[]>('read_image', { hash, ext })
+        return new Uint8Array(result)
+    },
+
+    migrateOldImage: (oldPath: string) => invoke<MigrateImageResult>('migrate_old_image', { oldPath }),
+
+    checkOldImagesExist: (paths: string[]) => invoke<boolean[]>('check_old_images_exist', { paths }),
 
     // Backup APIs
     selectBackupDirectory: () => invoke<string | null>('select_backup_directory'),

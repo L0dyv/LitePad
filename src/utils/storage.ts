@@ -1,59 +1,43 @@
 import { v4 as uuidv4 } from 'uuid'
+import * as db from '../db'
 
-export interface Tab {
-    id: string
-    title: string
-    content: string
-    createdAt: number
-    updatedAt: number
-}
+// 重新导出 db 模块的类型
+export type { Tab, ClosedTab, ArchivedTab, SyncConfig } from '../db'
 
-// 已关闭的标签页（用于回收站）
-export interface ClosedTab extends Tab {
-    closedAt: number
-    index: number  // 原始位置索引
-}
-
-// 已归档的标签页
-export interface ArchivedTab extends Tab {
-    archivedAt: number
+// 保持原有接口兼容
+export interface AppData {
+    tabs: db.Tab[]
+    activeTabId: string
 }
 
 // Zen Mode 设置
 export interface ZenModeSettings {
-    sidebarVisible: boolean    // 侧边栏（标签栏）是否可见
-    enabled: boolean           // 是否启用 Zen Mode 功能
-}
-
-export interface AppData {
-    tabs: Tab[]
-    activeTabId: string
+    sidebarVisible: boolean
+    enabled: boolean
 }
 
 // 快捷键配置
 export interface ShortcutSettings {
-    newTab: string      // 新建标签页
-    closeTab: string    // 关闭标签页
-    reopenTab: string   // 恢复关闭的标签页
-    searchTabs: string  // 搜索标签页
-    archiveTab: string  // 归档当前标签页
+    newTab: string
+    closeTab: string
+    reopenTab: string
+    searchTabs: string
+    archiveTab: string
 }
 
 // 状态栏显示配置
 export interface StatusBarSettings {
-    showShortcuts: boolean  // 显示快捷键提示
-    showLineCount: boolean  // 显示行数
-    showCharCount: boolean  // 显示字符数
+    showShortcuts: boolean
+    showLineCount: boolean
+    showCharCount: boolean
 }
 
-const STORAGE_KEY = 'flashpad-data'
+// Storage keys (用于设置迁移兼容)
 const SHORTCUTS_KEY = 'flashpad-shortcuts'
 const STATUSBAR_KEY = 'flashpad-statusbar'
 const FONT_KEY = 'flashpad-font'
 const EDITOR_FONT_KEY = 'flashpad-editor-font'
-const CLOSED_TABS_KEY = 'flashpad-closed-tabs'
-const ARCHIVED_TABS_KEY = 'flashpad-archived-tabs'
-const MAX_CLOSED_TABS = 20  // 最多保留 20 个关闭的标签页
+const EDITOR_FONT_SIZE_KEY = 'flashpad-editor-font-size'
 const ZEN_MODE_KEY = 'flashpad-zen-mode'
 
 // 默认快捷键
@@ -74,12 +58,136 @@ export const DEFAULT_STATUSBAR: StatusBarSettings = {
 
 // 默认 Zen Mode 设置
 export const DEFAULT_ZEN_MODE: ZenModeSettings = {
-    sidebarVisible: true,   // 默认显示水平 TabBar，Ctrl+\ 切换到侧边栏
+    sidebarVisible: true,
     enabled: true
 }
 
 // 默认字体
 export const DEFAULT_FONT = 'SimSun'
+export const DEFAULT_EDITOR_FONT = 'Consolas'
+export const DEFAULT_EDITOR_FONT_SIZE = 14
+
+// ===== 同步 API（兼容层，内部使用 IndexedDB）=====
+
+// 初始化数据库
+export async function initStorage(): Promise<void> {
+    await db.initDatabase()
+}
+
+// 加载数据（异步版本）
+export async function loadDataAsync(): Promise<AppData> {
+    const tabs = await db.getAllTabs()
+    const appState = await db.getAppState()
+
+    if (tabs.length === 0) {
+        // 创建默认标签页
+        const defaultTab = await db.createTab('New Page')
+        await db.setAppState(defaultTab.id)
+        return {
+            tabs: [defaultTab],
+            activeTabId: defaultTab.id
+        }
+    }
+
+    return {
+        tabs,
+        activeTabId: appState?.activeTabId || tabs[0].id
+    }
+}
+
+// 保存数据（异步版本）
+export async function saveDataAsync(data: AppData): Promise<void> {
+    // 更新所有标签页
+    await db.bulkUpdateTabs(data.tabs)
+    // 更新活跃标签页
+    await db.setAppState(data.activeTabId)
+}
+
+// ===== 同步包装器（用于保持原有同步 API 兼容）=====
+
+// 缓存数据，用于同步 API
+let cachedData: AppData | null = null
+let cacheInitialized = false
+
+// 加载数据（同步版本 - 使用缓存）
+export function loadData(): AppData {
+    if (cachedData) {
+        return cachedData
+    }
+
+    // 首次加载时从 localStorage 读取（迁移前的兼容）
+    try {
+        const stored = localStorage.getItem('flashpad-data')
+        if (stored) {
+            const parsed = JSON.parse(stored)
+            // 为旧数据添加新字段
+            const tabs = (parsed.tabs || []).map((t: any) => ({
+                ...t,
+                localVersion: t.localVersion || 1,
+                syncedAt: t.syncedAt || null,
+                deleted: t.deleted || false
+            }))
+            cachedData = {
+                tabs,
+                activeTabId: parsed.activeTabId || tabs[0]?.id || ''
+            }
+            return cachedData
+        }
+    } catch (e) {
+        console.error('加载数据失败:', e)
+    }
+
+    // 默认数据
+    const defaultTab = createTab()
+    cachedData = {
+        tabs: [defaultTab],
+        activeTabId: defaultTab.id
+    }
+    return cachedData
+}
+
+// 保存数据（同步版本 - 更新缓存并异步写入）
+export function saveData(data: AppData): void {
+    cachedData = data
+
+    // 同时写入 localStorage（兼容）和 IndexedDB
+    try {
+        localStorage.setItem('flashpad-data', JSON.stringify(data))
+    } catch (e) {
+        console.error('保存数据失败:', e)
+    }
+
+    // 异步写入 IndexedDB
+    saveDataAsync(data).catch(e => console.error('IndexedDB 保存失败:', e))
+}
+
+// 刷新缓存（从 IndexedDB 加载最新数据）
+export async function refreshCache(): Promise<AppData> {
+    cachedData = await loadDataAsync()
+    cacheInitialized = true
+    return cachedData
+}
+
+// 检查缓存是否已从 IndexedDB 初始化
+export function isCacheInitialized(): boolean {
+    return cacheInitialized
+}
+
+// 创建新标签页
+export function createTab(title?: string): db.Tab {
+    return {
+        id: uuidv4(),
+        title: title || 'New Page',
+        content: '',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        localVersion: 1,
+        syncedAt: null,
+        deleted: false
+    }
+}
+
+// ===== 设置相关（保持原有 API）=====
 
 // 加载字体设置
 export function loadFont(): string {
@@ -98,13 +206,11 @@ export function loadFont(): string {
 export function saveFont(font: string): void {
     try {
         localStorage.setItem(FONT_KEY, font)
+        db.setSetting(FONT_KEY, font).catch(console.error)
     } catch (e) {
         console.error('保存字体设置失败:', e)
     }
 }
-
-// 默认编辑器字体
-export const DEFAULT_EDITOR_FONT = 'Consolas'
 
 // 加载编辑器字体设置
 export function loadEditorFont(): string {
@@ -123,14 +229,11 @@ export function loadEditorFont(): string {
 export function saveEditorFont(font: string): void {
     try {
         localStorage.setItem(EDITOR_FONT_KEY, font)
+        db.setSetting(EDITOR_FONT_KEY, font).catch(console.error)
     } catch (e) {
         console.error('保存编辑器字体设置失败:', e)
     }
 }
-
-// 默认编辑器字号
-const EDITOR_FONT_SIZE_KEY = 'flashpad-editor-font-size'
-export const DEFAULT_EDITOR_FONT_SIZE = 14
 
 // 加载编辑器字号设置
 export function loadEditorFontSize(): number {
@@ -152,6 +255,7 @@ export function loadEditorFontSize(): number {
 export function saveEditorFontSize(size: number): void {
     try {
         localStorage.setItem(EDITOR_FONT_SIZE_KEY, size.toString())
+        db.setSetting(EDITOR_FONT_SIZE_KEY, size).catch(console.error)
     } catch (e) {
         console.error('保存编辑器字号设置失败:', e)
     }
@@ -174,6 +278,7 @@ export function loadShortcuts(): ShortcutSettings {
 export function saveShortcuts(shortcuts: ShortcutSettings): void {
     try {
         localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcuts))
+        db.setSetting(SHORTCUTS_KEY, shortcuts).catch(console.error)
     } catch (e) {
         console.error('保存快捷键配置失败:', e)
     }
@@ -196,6 +301,7 @@ export function loadStatusBar(): StatusBarSettings {
 export function saveStatusBar(settings: StatusBarSettings): void {
     try {
         localStorage.setItem(STATUSBAR_KEY, JSON.stringify(settings))
+        db.setSetting(STATUSBAR_KEY, settings).catch(console.error)
     } catch (e) {
         console.error('保存状态栏配置失败:', e)
     }
@@ -223,51 +329,12 @@ export function matchShortcut(e: KeyboardEvent, shortcut: string): boolean {
     )
 }
 
-// 从本地存储加载数据
-export function loadData(): AppData {
+// ===== 回收站相关 =====
+
+// 加载已关闭的标签页
+export function loadClosedTabs(): db.ClosedTab[] {
     try {
-        const stored = localStorage.getItem(STORAGE_KEY)
-        if (stored) {
-            return JSON.parse(stored)
-        }
-    } catch (e) {
-        console.error('加载数据失败:', e)
-    }
-
-    // 默认数据：一个空白标签页
-    // 注意：这里使用固定值，实际显示由 i18n 控制
-    const defaultTab = createTab()
-    return {
-        tabs: [defaultTab],
-        activeTabId: defaultTab.id
-    }
-}
-
-// 保存数据到本地存储
-export function saveData(data: AppData): void {
-    try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data))
-    } catch (e) {
-        console.error('保存数据失败:', e)
-    }
-}
-
-// 创建新标签页
-// 注意：title 参数可由调用方传入翻译后的文本
-export function createTab(title?: string): Tab {
-    return {
-        id: uuidv4(),
-        title: title || 'New Page',
-        content: '',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-    }
-}
-
-// 加载已关闭的标签页（回收站）
-export function loadClosedTabs(): ClosedTab[] {
-    try {
-        const stored = localStorage.getItem(CLOSED_TABS_KEY)
+        const stored = localStorage.getItem('flashpad-closed-tabs')
         if (stored) {
             return JSON.parse(stored)
         }
@@ -278,35 +345,35 @@ export function loadClosedTabs(): ClosedTab[] {
 }
 
 // 保存关闭的标签页到回收站
-export function saveClosedTab(tab: Tab, index: number): void {
+export function saveClosedTab(tab: db.Tab, index: number): void {
     try {
         const closedTabs = loadClosedTabs()
-        const closedTab: ClosedTab = {
+        const closedTab: db.ClosedTab = {
             ...tab,
             closedAt: Date.now(),
             index
         }
-        // 添加到队列头部（最近关闭的在前）
         closedTabs.unshift(closedTab)
-        // 限制最大数量
-        if (closedTabs.length > MAX_CLOSED_TABS) {
+        if (closedTabs.length > 20) {
             closedTabs.pop()
         }
-        localStorage.setItem(CLOSED_TABS_KEY, JSON.stringify(closedTabs))
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(closedTabs))
+        db.addToClosedTabs(tab, index).catch(console.error)
     } catch (e) {
         console.error('保存到回收站失败:', e)
     }
 }
 
-// 弹出最近关闭的标签页（恢复时使用）
-export function popClosedTab(): ClosedTab | null {
+// 弹出最近关闭的标签页
+export function popClosedTab(): db.ClosedTab | null {
     try {
         const closedTabs = loadClosedTabs()
         if (closedTabs.length === 0) {
             return null
         }
         const [restoredTab, ...remaining] = closedTabs
-        localStorage.setItem(CLOSED_TABS_KEY, JSON.stringify(remaining))
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        db.popClosedTab().catch(console.error)
         return restoredTab
     } catch (e) {
         console.error('从回收站恢复失败:', e)
@@ -314,14 +381,16 @@ export function popClosedTab(): ClosedTab | null {
     }
 }
 
+// ===== 归档相关 =====
+
 // 加载已归档的标签页
-export function loadArchivedTabs(): ArchivedTab[] {
+export function loadArchivedTabs(): db.ArchivedTab[] {
     try {
-        const stored = localStorage.getItem(ARCHIVED_TABS_KEY)
+        const stored = localStorage.getItem('flashpad-archived-tabs')
         if (stored) {
-            const parsed = JSON.parse(stored) as ArchivedTab[]
+            const parsed = JSON.parse(stored) as db.ArchivedTab[]
             const seen = new Set<string>()
-            const deduped: ArchivedTab[] = []
+            const deduped: db.ArchivedTab[] = []
             for (const tab of parsed) {
                 if (!seen.has(tab.id)) {
                     seen.add(tab.id)
@@ -337,31 +406,29 @@ export function loadArchivedTabs(): ArchivedTab[] {
 }
 
 // 保存标签页到归档
-export function saveArchivedTab(tab: Tab): void {
+export function saveArchivedTab(tab: db.Tab): void {
     try {
         let archivedTabs = loadArchivedTabs()
-        const sameIdCount = archivedTabs.filter(t => t.id === tab.id).length
-        if (sameIdCount > 0) {
-            archivedTabs = archivedTabs.filter(t => t.id !== tab.id)
-        }
-        const archivedTab: ArchivedTab = {
+        archivedTabs = archivedTabs.filter(t => t.id !== tab.id)
+        const archivedTab: db.ArchivedTab = {
             ...tab,
             archivedAt: Date.now()
         }
-        // 添加到队列头部（最近归档的在前）
         archivedTabs.unshift(archivedTab)
-        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify(archivedTabs))
+        localStorage.setItem('flashpad-archived-tabs', JSON.stringify(archivedTabs))
+        db.addToArchivedTabs(tab).catch(console.error)
     } catch (e) {
         console.error('保存到归档失败:', e)
     }
 }
 
 // 从归档中移除指定标签页
-export function removeArchivedTab(tab: ArchivedTab): ArchivedTab[] {
+export function removeArchivedTab(tab: db.ArchivedTab): db.ArchivedTab[] {
     try {
         const archivedTabs = loadArchivedTabs()
         const remaining = archivedTabs.filter(t => !(t.id === tab.id && t.archivedAt === tab.archivedAt))
-        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify(remaining))
+        localStorage.setItem('flashpad-archived-tabs', JSON.stringify(remaining))
+        db.removeFromArchivedTabs(tab.id).catch(console.error)
         return remaining
     } catch (e) {
         console.error('从归档移除失败:', e)
@@ -372,16 +439,18 @@ export function removeArchivedTab(tab: ArchivedTab): ArchivedTab[] {
 // 清空所有归档
 export function clearArchivedTabs(): void {
     try {
-        localStorage.setItem(ARCHIVED_TABS_KEY, JSON.stringify([]))
+        localStorage.setItem('flashpad-archived-tabs', JSON.stringify([]))
+        db.clearArchivedTabs().catch(console.error)
     } catch (e) {
         console.error('清空归档失败:', e)
     }
 }
 
+// ===== Zen Mode =====
+
 // 加载 Zen Mode 设置
 export function loadZenMode(): ZenModeSettings {
     try {
-        // 一次性清除旧设置，确保使用新默认值
         const migrationKey = 'flashpad-zen-mode-v2'
         if (!localStorage.getItem(migrationKey)) {
             localStorage.removeItem(ZEN_MODE_KEY)
@@ -402,8 +471,8 @@ export function loadZenMode(): ZenModeSettings {
 export function saveZenMode(settings: ZenModeSettings): void {
     try {
         localStorage.setItem(ZEN_MODE_KEY, JSON.stringify(settings))
+        db.setSetting(ZEN_MODE_KEY, settings).catch(console.error)
     } catch (e) {
         console.error('保存 Zen Mode 设置失败:', e)
     }
 }
-

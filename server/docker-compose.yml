@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  litepad-sync:
+    build: .
+    container_name: litepad-sync
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - litepad-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_PATH=/app/data/litepad.db
+      - JWT_SECRET=${JWT_SECRET:-change-this-in-production}
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  litepad-data:
+    driver: local

@@ -1,0 +1,32 @@
+{
+  "name": "litepad-sync-server",
+  "version": "1.0.0",
+  "description": "LitePad Sync Server - Local-first sync service",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:init": "tsx src/db/init.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.13.7",
+    "@hono/node-ws": "^1.0.8",
+    "better-sqlite3": "^11.6.0",
+    "hono": "^4.6.14",
+    "jsonwebtoken": "^9.0.2",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^11.0.3",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.2",
+    "@types/uuid": "^10.0.0",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

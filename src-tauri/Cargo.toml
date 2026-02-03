@@ -1,6 +1,6 @@
 [package]
 name = "litepad"
-version = "1.1.2"
+version = "2.0.0"
 description = "Fast, local, high-performance scratch pad"
 authors = ["LitePad"]
 edition = "2021"
@@ -26,6 +26,8 @@ zip = "2"
 walkdir = "2"
 chrono = "0.4"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
+sha2 = "0.10"
+hex = "0.4"
 
 [profile.release]
 panic = "abort"

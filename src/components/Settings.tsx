@@ -5,6 +5,11 @@ import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult, UpdateInfo } from '../lib/tauri-api'
 import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
+import { AuthModal } from './AuthModal'
+import { isLoggedIn, getUserInfo, logout as authLogout } from '../sync/auth'
+import { getConfig, enableSync, disableSync, DEFAULT_SERVER_URL, setConfig } from '../sync/config'
+import type { SyncConfig } from '../db'
+import { startSync, stopSync, getSyncStatus, manualSync } from '../sync'
 import './Settings.css'
 
 interface SettingsProps {
@@ -76,6 +81,14 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [checkingUpdate, setCheckingUpdate] = useState(false)
     const [updateError, setUpdateError] = useState<string | null>(null)
 
+    // Sync states
+    const [syncConfig, setSyncConfig] = useState<SyncConfig | null>(null)
+    const [syncStatus, setSyncStatus] = useState(getSyncStatus())
+    const [showAuthModal, setShowAuthModal] = useState(false)
+    const [showAdvancedSync, setShowAdvancedSync] = useState(false)
+    const [customServerUrl, setCustomServerUrl] = useState('')
+    const [syncLoading, setSyncLoading] = useState(false)
+
     useEffect(() => {
         // 获取当前设置
         window.electronAPI?.getSettings().then((settings) => {
@@ -110,6 +123,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         tauriAPI?.getBackupList().then((list) => {
             setBackupList(list)
         })
+        // 加载同步配置
+        getConfig().then((config) => {
+            setSyncConfig(config)
+            setCustomServerUrl(config.serverUrl || DEFAULT_SERVER_URL)
+        })
+        setSyncStatus(getSyncStatus())
     }, [isOpen])
 
     // 录制快捷键
@@ -188,6 +207,87 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
 
     const startRecording = (key: keyof ShortcutSettings) => {
         setRecording(key)
+    }
+
+    // Sync handlers
+    const handleSyncToggle = async (enabled: boolean) => {
+        if (enabled) {
+            if (!isLoggedIn()) {
+                setShowAuthModal(true)
+                return
+            }
+            await enableSync(customServerUrl)
+            setSyncConfig(await getConfig())
+            try {
+                await startSync()
+            } catch (error) {
+                console.error('启动同步失败:', error)
+            }
+        } else {
+            stopSync()
+            await disableSync()
+            setSyncConfig(await getConfig())
+        }
+        setSyncStatus(getSyncStatus())
+    }
+
+    const handleAuthSuccess = async () => {
+        setSyncConfig(await getConfig())
+        // 自动启用同步
+        await enableSync(customServerUrl)
+        setSyncConfig(await getConfig())
+        try {
+            await startSync()
+        } catch (error) {
+            console.error('启动同步失败:', error)
+        }
+        setSyncStatus(getSyncStatus())
+    }
+
+    const handleLogout = async () => {
+        stopSync()
+        await authLogout()
+        await disableSync()
+        setSyncConfig(await getConfig())
+        setSyncStatus(getSyncStatus())
+    }
+
+    const handleManualSync = async () => {
+        if (!isLoggedIn()) return
+        setSyncLoading(true)
+        try {
+            await manualSync()
+        } catch (error) {
+            console.error('同步失败:', error)
+        } finally {
+            setSyncLoading(false)
+        }
+    }
+
+    const handleServerUrlChange = async (url: string) => {
+        setCustomServerUrl(url)
+        await setConfig({ serverUrl: url })
+        setSyncConfig(await getConfig())
+    }
+
+    const formatLastSync = (timestamp: number | null) => {
+        if (!timestamp) return t('sync.never')
+        const now = Date.now()
+        const diff = now - timestamp
+        if (diff < 60000) return t('trash.justNow')
+        if (diff < 3600000) return t('trash.minutesAgo', { count: Math.floor(diff / 60000) })
+        if (diff < 86400000) return t('trash.hoursAgo', { count: Math.floor(diff / 3600000) })
+        return t('trash.daysAgo', { count: Math.floor(diff / 86400000) })
+    }
+
+    const getSyncStatusText = () => {
+        switch (syncStatus) {
+            case 'connected': return t('sync.connected')
+            case 'connecting': return t('sync.connecting')
+            case 'syncing': return t('sync.syncing')
+            case 'error': return t('sync.error')
+            default: return t('sync.disconnected')
+        }
     }
 
     // Backup handlers
@@ -470,6 +570,87 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                         </label>
                     </div>
                     <div className="settings-section">
+                        <h3>{t('sync.title')}</h3>
+                        <label className="settings-item">
+                            <span>{t('sync.enabled')}</span>
+                            <input
+                                type="checkbox"
+                                checked={syncConfig?.enabled ?? false}
+                                onChange={(e) => handleSyncToggle(e.target.checked)}
+                            />
+                        </label>
+                        {syncConfig?.enabled && (
+                            <>
+                                <div className="settings-item">
+                                    <span>{t('sync.status')}</span>
+                                    <span className={`sync-status sync-status-${syncStatus}`}>
+                                        {getSyncStatusText()}
+                                    </span>
+                                </div>
+                                <div className="settings-item">
+                                    <span>{t('sync.lastSync')}</span>
+                                    <span className="sync-last-time">
+                                        {formatLastSync(syncConfig?.lastSyncAt ?? null)}
+                                    </span>
+                                </div>
+                                <div className="settings-item">
+                                    <span>{t('sync.account')}</span>
+                                    <span className="sync-account">
+                                        {isLoggedIn() ? getUserInfo()?.email : t('sync.notLoggedIn')}
+                                    </span>
+                                </div>
+                                {isLoggedIn() && (
+                                    <div className="settings-item">
+                                        <span></span>
+                                        <div className="sync-actions">
+                                            <button
+                                                className="sync-btn"
+                                                onClick={handleManualSync}
+                                                disabled={syncLoading}
+                                            >
+                                                {syncLoading ? t('sync.syncing') : t('sync.syncNow')}
+                                            </button>
+                                            <button
+                                                className="sync-btn logout"
+                                                onClick={handleLogout}
+                                            >
+                                                {t('sync.logout')}
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                <div className="settings-item">
+                                    <span>{t('sync.advanced')}</span>
+                                    <button
+                                        className="view-shortcuts-btn"
+                                        onClick={() => setShowAdvancedSync(!showAdvancedSync)}
+                                    >
+                                        {showAdvancedSync ? '−' : '+'}
+                                    </button>
+                                </div>
+                                {showAdvancedSync && (
+                                    <div className="sync-advanced">
+                                        <div className="settings-item">
+                                            <span>{t('sync.serverUrl')}</span>
+                                            <input
+                                                type="text"
+                                                className="settings-input"
+                                                value={customServerUrl}
+                                                onChange={(e) => handleServerUrlChange(e.target.value)}
+                                                placeholder={DEFAULT_SERVER_URL}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                        {!syncConfig?.enabled && !isLoggedIn() && (
+                            <div className="sync-hint">
+                                {t('sync.loginToSync')}
+                            </div>
+                        )}
+                    </div>
+                    <div className="settings-section">
                         <h3>{t('settings.shortcuts')}</h3>
                         <div className="settings-item">
                             <span>{t('settings.shortcutReference')}</span>
@@ -736,6 +917,11 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                     </div>
                 </div>
             </div>
+            <AuthModal
+                isOpen={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                onSuccess={handleAuthSuccess}
+            />
         </div>
     )
 }

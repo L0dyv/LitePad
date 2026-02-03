@@ -3,13 +3,16 @@
 
 use chrono::Local;
 use font_kit::source::SystemSource;
+use hex;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::{
+    http::Response,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, PhysicalPosition, PhysicalSize, State, WebviewWindow, WindowEvent,
@@ -337,23 +340,174 @@ fn get_system_fonts() -> Vec<String> {
     fonts
 }
 
+// 图片保存结果，包含 hash 和 URL
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SaveImageResult {
+    pub hash: String,
+    pub url: String,
+    pub size: usize,
+    pub ext: String,
+}
+
 #[tauri::command]
 async fn save_image(
     state: State<'_, Mutex<AppState>>,
     buffer: Vec<u8>,
     ext: String,
-) -> Result<String, String> {
+) -> Result<SaveImageResult, String> {
+    // 计算 SHA-256 hash
+    let mut hasher = Sha256::new();
+    hasher.update(&buffer);
+    let hash = hex::encode(hasher.finalize());
+
     let state = state.lock().unwrap();
-    let filename = format!("{}{}", Uuid::new_v4(), ext);
+    // 使用 hash 作为文件名（去重）
+    let filename = format!("{}{}", hash, ext);
     let file_path = state.images_path.join(&filename);
 
-    fs::write(&file_path, buffer).map_err(|e| e.to_string())?;
+    // 如果文件已存在（相同 hash），直接返回，不重复写入
+    if !file_path.exists() {
+        fs::write(&file_path, &buffer).map_err(|e| e.to_string())?;
+    }
 
-    // Return asset protocol URL
-    Ok(format!(
-        "asset://localhost/{}",
-        file_path.to_string_lossy().replace('\\', "/")
-    ))
+    // 返回 litepad:// 协议 URL
+    Ok(SaveImageResult {
+        hash: hash.clone(),
+        url: format!("litepad://images/{}{}", hash, ext),
+        size: buffer.len(),
+        ext: ext.clone(),
+    })
+}
+
+// 根据 hash 获取图片路径（用于 litepad:// 协议）
+#[tauri::command]
+fn get_image_path(state: State<'_, Mutex<AppState>>, hash: String, ext: String) -> Result<String, String> {
+    let state = state.lock().unwrap();
+    let filename = format!("{}{}", hash, ext);
+    let file_path = state.images_path.join(&filename);
+
+    if file_path.exists() {
+        Ok(file_path.to_string_lossy().to_string())
+    } else {
+        Err(format!("Image not found: {}", filename))
+    }
+}
+
+// 检查图片是否存在
+#[tauri::command]
+fn has_image(state: State<'_, Mutex<AppState>>, hash: String, ext: String) -> bool {
+    let state = state.lock().unwrap();
+    let filename = format!("{}{}", hash, ext);
+    let file_path = state.images_path.join(&filename);
+    file_path.exists()
+}
+
+// 保存从服务器下载的图片
+#[tauri::command]
+async fn save_downloaded_image(
+    state: State<'_, Mutex<AppState>>,
+    hash: String,
+    ext: String,
+    buffer: Vec<u8>,
+) -> Result<String, String> {
+    let state = state.lock().unwrap();
+    let filename = format!("{}{}", hash, ext);
+    let file_path = state.images_path.join(&filename);
+
+    // 验证 hash
+    let mut hasher = Sha256::new();
+    hasher.update(&buffer);
+    let computed_hash = hex::encode(hasher.finalize());
+
+    if computed_hash != hash {
+        return Err(format!(
+            "Hash mismatch: expected {}, got {}",
+            hash, computed_hash
+        ));
+    }
+
+    fs::write(&file_path, &buffer).map_err(|e| e.to_string())?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
+// 读取本地图片文件（用于上传到服务器）
+#[tauri::command]
+fn read_image(state: State<'_, Mutex<AppState>>, hash: String, ext: String) -> Result<Vec<u8>, String> {
+    let state = state.lock().unwrap();
+    let filename = format!("{}{}", hash, ext);
+    let file_path = state.images_path.join(&filename);
+
+    fs::read(&file_path).map_err(|e| e.to_string())
+}
+
+// 迁移结果
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MigrateImageResult {
+    pub hash: String,
+    pub ext: String,
+    pub size: usize,
+    pub new_url: String,
+}
+
+// 迁移旧格式图片到新的 hash-based 格式
+#[tauri::command]
+fn migrate_old_image(
+    state: State<'_, Mutex<AppState>>,
+    old_path: String,
+) -> Result<MigrateImageResult, String> {
+    // 尝试读取旧文件
+    let old_path = old_path.replace('/', "\\").replace("\\\\", "\\");
+    let old_file = std::path::Path::new(&old_path);
+
+    if !old_file.exists() {
+        return Err(format!("文件不存在: {}", old_path));
+    }
+
+    // 读取文件内容
+    let buffer = fs::read(old_file).map_err(|e| format!("读取文件失败: {}", e))?;
+
+    // 计算 hash
+    let mut hasher = Sha256::new();
+    hasher.update(&buffer);
+    let hash = hex::encode(hasher.finalize());
+
+    // 获取扩展名
+    let ext = old_file
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| format!(".{}", e))
+        .unwrap_or_else(|| ".png".to_string());
+
+    let state = state.lock().unwrap();
+    let new_filename = format!("{}{}", hash, ext);
+    let new_path = state.images_path.join(&new_filename);
+
+    // 如果新文件不存在，复制过去
+    if !new_path.exists() {
+        fs::write(&new_path, &buffer).map_err(|e| format!("写入文件失败: {}", e))?;
+    }
+
+    Ok(MigrateImageResult {
+        hash: hash.clone(),
+        ext: ext.clone(),
+        size: buffer.len(),
+        new_url: format!("litepad://images/{}{}", hash, ext),
+    })
+}
+
+// 批量检查旧图片是否存在
+#[tauri::command]
+fn check_old_images_exist(paths: Vec<String>) -> Vec<bool> {
+    paths
+        .iter()
+        .map(|p| {
+            let path = p.replace('/', "\\").replace("\\\\", "\\");
+            std::path::Path::new(&path).exists()
+        })
+        .collect()
 }
 
 #[tauri::command]
@@ -782,6 +936,62 @@ fn main() {
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
+        // 注册 litepad:// 协议处理器
+        .register_uri_scheme_protocol("litepad", move |_ctx, request| {
+            let uri = request.uri();
+            let path = uri.path();
+
+            // 解析路径：/images/{hash}{ext}
+            if path.starts_with("/images/") {
+                let filename = &path[8..]; // 去掉 "/images/" 前缀
+
+                // 从可执行文件路径获取 images 目录
+                let exe_path = std::env::current_exe().expect("Failed to get executable path");
+                let exe_dir = exe_path.parent().expect("Failed to get executable directory");
+                let images_path = exe_dir.join("data").join("images");
+                let file_path = images_path.join(filename);
+
+                if file_path.exists() {
+                    match std::fs::read(&file_path) {
+                        Ok(content) => {
+                            // 根据扩展名设置 MIME 类型
+                            let ext = file_path
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("png");
+                            let mime_type = match ext {
+                                "png" => "image/png",
+                                "jpg" | "jpeg" => "image/jpeg",
+                                "gif" => "image/gif",
+                                "webp" => "image/webp",
+                                "svg" => "image/svg+xml",
+                                "bmp" => "image/bmp",
+                                _ => "application/octet-stream",
+                            };
+
+                            return Response::builder()
+                                .status(200)
+                                .header("Content-Type", mime_type)
+                                .header("Cache-Control", "max-age=31536000, immutable")
+                                .body(content)
+                                .expect("Failed to build response");
+                        }
+                        Err(_) => {
+                            return Response::builder()
+                                .status(500)
+                                .body(Vec::new())
+                                .expect("Failed to build error response");
+                        }
+                    }
+                }
+            }
+
+            // 404 Not Found
+            Response::builder()
+                .status(404)
+                .body(Vec::new())
+                .expect("Failed to build 404 response")
+        })
         .manage(Mutex::new(app_state))
         .invoke_handler(tauri::generate_handler![
             get_version,
@@ -790,6 +1000,12 @@ fn main() {
             set_always_on_top,
             get_system_fonts,
             save_image,
+            get_image_path,
+            has_image,
+            save_downloaded_image,
+            read_image,
+            migrate_old_image,
+            check_old_images_exist,
             minimize_window,
             maximize_window,
             close_window,
