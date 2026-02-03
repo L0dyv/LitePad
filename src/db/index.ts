@@ -124,7 +124,7 @@ export async function initSyncConfig(): Promise<SyncConfig> {
             id: 'default',
             enabled: false,
             userId: null,
-            serverUrl: 'https://sync.litepad.app', // 默认服务器
+            serverUrl: '', // 需用户自行配置（开发环境可用 http://localhost:3000）
             lastSyncAt: null,
             deviceId
         }
@@ -242,12 +242,12 @@ export async function getPendingSyncTabs(): Promise<Tab[]> {
     }).toArray()
 }
 
-// 标记标签页已同步
-export async function markTabsSynced(ids: string[]): Promise<void> {
-    const now = Date.now()
+// 标记标签页已同步（使用服务器时间）
+export async function markTabsSynced(ids: string[], serverTime?: number): Promise<void> {
+    const syncTime = serverTime ?? Date.now()  // 优先使用 serverTime
     await db.transaction('rw', db.tabs, async () => {
         for (const id of ids) {
-            await db.tabs.update(id, { syncedAt: now })
+            await db.tabs.update(id, { syncedAt: syncTime })
         }
     })
 }

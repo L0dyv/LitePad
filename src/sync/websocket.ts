@@ -1,4 +1,4 @@
-import { Tab, getPendingSyncTabs, markTabsSynced, bulkUpdateTabs } from '../db'
+import { Tab, getPendingSyncTabs, markTabsSynced, bulkUpdateTabs, getTab } from '../db'
 import { getConfig, emitSyncEvent, SyncStatus, setConfig } from './config'
 import { getAccessToken } from './auth'
 
@@ -130,8 +130,9 @@ class SyncWebSocket {
         switch (message.type) {
             case 'connected':
                 console.log('[Sync] 服务器确认连接', message.userId)
-                // 连接后立即推送待同步的变更
+                // 连接后：先推送待同步的变更，再拉取离线期间的变更
                 await this.pushPending()
+                await this.pull()  // 补齐离线期间的变更
                 break
 
             case 'pong':
@@ -161,9 +162,9 @@ class SyncWebSocket {
     private async handleAck(message: WsMessage): Promise<void> {
         const { synced, updates, conflicts, serverTime } = message
 
-        // 标记已同步
+        // 标记已同步（使用服务器时间）
         if (synced && synced.length > 0) {
-            await markTabsSynced(synced)
+            await markTabsSynced(synced, serverTime)
         }
 
         // 更新来自服务器的变更
@@ -200,18 +201,55 @@ class SyncWebSocket {
         const { tabs, serverTime } = message
 
         if (tabs && tabs.length > 0) {
-            const localTabs: Tab[] = tabs.map((t: any) => ({
-                id: t.id,
-                title: t.title,
-                content: t.content,
-                createdAt: t.createdAt,
-                updatedAt: t.updatedAt,
-                localVersion: t.version || t.localVersion,
-                syncedAt: serverTime,
-                deleted: t.deleted
-            }))
-            await bulkUpdateTabs(localTabs)
-            emitSyncEvent({ type: 'remote-changes', data: { tabs: localTabs } })
+            const toUpdate: Tab[] = []
+            const conflicts: Array<{ local: Tab; remote: any }> = []
+
+            for (const remoteTab of tabs) {
+                const localTab = await getTab(remoteTab.id)
+
+                if (!localTab) {
+                    // 本地不存在，直接插入
+                    toUpdate.push({
+                        id: remoteTab.id,
+                        title: remoteTab.title,
+                        content: remoteTab.content,
+                        createdAt: remoteTab.createdAt,
+                        updatedAt: remoteTab.updatedAt,
+                        localVersion: remoteTab.version || remoteTab.localVersion,
+                        syncedAt: serverTime,
+                        deleted: remoteTab.deleted
+                    })
+                } else if (localTab.syncedAt === null) {
+                    // 本地是新创建未同步的，标记为冲突
+                    conflicts.push({ local: localTab, remote: remoteTab })
+                } else if (localTab.updatedAt > localTab.syncedAt) {
+                    // 本地有未同步的修改，标记为冲突
+                    conflicts.push({ local: localTab, remote: remoteTab })
+                } else {
+                    // 本地无修改，可以安全覆盖
+                    toUpdate.push({
+                        id: remoteTab.id,
+                        title: remoteTab.title,
+                        content: remoteTab.content,
+                        createdAt: remoteTab.createdAt,
+                        updatedAt: remoteTab.updatedAt,
+                        localVersion: remoteTab.version || remoteTab.localVersion,
+                        syncedAt: serverTime,
+                        deleted: remoteTab.deleted
+                    })
+                }
+            }
+
+            // 更新无冲突的 Tab
+            if (toUpdate.length > 0) {
+                await bulkUpdateTabs(toUpdate)
+                emitSyncEvent({ type: 'remote-changes', data: { tabs: toUpdate } })
+            }
+
+            // 触发冲突事件
+            if (conflicts.length > 0) {
+                emitSyncEvent({ type: 'conflict', data: { conflicts } })
+            }
         }
 
         // 更新最后同步时间

@@ -1,7 +1,8 @@
 import { getSyncConfig, updateSyncConfig, SyncConfig } from '../db'
 
-// 默认服务器地址
-export const DEFAULT_SERVER_URL = 'https://sync.litepad.app'
+// 默认服务器地址（空字符串，用户需自行配置）
+// 开发环境可使用 http://localhost:3000
+export const DEFAULT_SERVER_URL = ''
 
 // 同步状态
 export type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'syncing' | 'error'

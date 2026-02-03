@@ -32,10 +32,12 @@ export interface SyncResult {
 /**
  * 检测并处理同步冲突
  * 
- * 冲突条件：
- * 1. 客户端有修改（updatedAt > syncedAt）
- * 2. 服务器也有修改（server.updated_at > client.syncedAt）
- * 3. 两边版本不一致
+ * 核心逻辑：基于 localVersion（乐观锁）判定
+ * 1. 服务器没有此 Tab：无冲突，接受客户端版本
+ * 2. 客户端 localVersion >= 服务器 version：客户端较新，接受客户端版本
+ * 3. 客户端 localVersion < 服务器 version：服务器有更新版本
+ *    - 如果客户端有本地未同步修改：冲突
+ *    - 否则：返回服务器版本给客户端
  */
 export function detectConflict(clientTab: ClientTab, serverTab: DbTab | undefined): ConflictResult | null {
     // 服务器没有此标签页，不会冲突
@@ -43,21 +45,18 @@ export function detectConflict(clientTab: ClientTab, serverTab: DbTab | undefine
         return null
     }
 
-    // 客户端从未同步过，但服务器有此标签页（可能是其他设备创建的）
-    // 这不算冲突，应该合并
-    if (clientTab.syncedAt === null) {
+    // 客户端版本 >= 服务器版本，客户端较新或相同，不冲突
+    if (clientTab.localVersion >= serverTab.version) {
         return null
     }
 
-    // 检查是否有冲突
-    // 客户端有本地修改
-    const clientHasLocalChanges = clientTab.updatedAt > clientTab.syncedAt
+    // 服务器版本更高，检查客户端是否有本地未同步修改
+    const clientHasLocalChanges =
+        clientTab.syncedAt === null ||  // 从未同步过
+        clientTab.updatedAt > clientTab.syncedAt  // 有本地修改
 
-    // 服务器在客户端上次同步后有修改
-    const serverHasNewerChanges = serverTab.updated_at > clientTab.syncedAt
-
-    // 两边都有修改 = 冲突
-    if (clientHasLocalChanges && serverHasNewerChanges) {
+    if (clientHasLocalChanges) {
+        // 客户端有本地修改，但服务器版本更高 = 冲突
         return {
             hasConflict: true,
             localTab: clientTab,
@@ -65,12 +64,19 @@ export function detectConflict(clientTab: ClientTab, serverTab: DbTab | undefine
         }
     }
 
+    // 客户端无本地修改，不是冲突（只是需要更新）
     return null
 }
 
 /**
  * 处理同步请求
  * 返回同步结果：成功同步的、需要更新的、冲突的
+ * 
+ * 判定规则（基于 localVersion）：
+ * - 服务器没有：接受客户端版本
+ * - 客户端 localVersion >= 服务器 version：接受客户端版本
+ * - 客户端 localVersion < 服务器 version 且客户端有修改：冲突
+ * - 客户端 localVersion < 服务器 version 且客户端无修改：返回服务器版本
  */
 export function processSyncRequest(
     clientTabs: ClientTab[],
@@ -93,19 +99,16 @@ export function processSyncRequest(
             continue
         }
 
-        // 无冲突，判断谁的版本更新
+        // 无冲突，判断是接受客户端还是返回服务器版本
         if (!serverTab) {
-            // 服务器没有，直接同步
+            // 服务器没有，接受客户端版本
             result.synced.push(clientTab.id)
-        } else if (clientTab.updatedAt > serverTab.updated_at) {
-            // 客户端更新，同步到服务器
+        } else if (clientTab.localVersion >= serverTab.version) {
+            // 客户端版本较新或相同，接受客户端版本
             result.synced.push(clientTab.id)
-        } else if (serverTab.updated_at > clientTab.updatedAt) {
-            // 服务器更新，返回给客户端
-            result.updates.push(serverTab)
         } else {
-            // 时间相同，认为已同步
-            result.synced.push(clientTab.id)
+            // 服务器版本更高，客户端无本地修改，返回服务器版本
+            result.updates.push(serverTab)
         }
     }
 

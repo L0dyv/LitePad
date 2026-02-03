@@ -154,9 +154,9 @@ export async function pushChanges(): Promise<SyncPushResult> {
 
     const result = await response.json() as SyncPushResult
 
-    // 标记已同步的标签页
+    // 标记已同步的标签页（使用服务器时间）
     if (result.synced.length > 0) {
-        await markTabsSynced(result.synced)
+        await markTabsSynced(result.synced, result.serverTime)
     }
 
     // 更新来自服务器的变更
@@ -202,14 +202,24 @@ export async function sync(): Promise<void> {
             const localTabs = await getAllTabs()
             if (localTabs.length > 0) {
                 // 先推送本地数据
-                await pushChanges()
+                const pushResult = await pushChanges()
+                // 如果有冲突，暂停同步，等待用户解决
+                if (pushResult.conflicts.length > 0) {
+                    console.log('[Sync] 检测到冲突，暂停同步等待用户处理')
+                    return
+                }
             }
             // 再拉取服务器数据
             await fullSync()
         } else {
             // 先推送本地变更
-            await pushChanges()
-            // 再拉取服务器变更
+            const pushResult = await pushChanges()
+            // 如果有冲突，暂停同步，等待用户解决
+            if (pushResult.conflicts.length > 0) {
+                console.log('[Sync] 检测到冲突，暂停同步等待用户处理')
+                return
+            }
+            // 无冲突时才拉取服务器变更
             await pullChanges()
         }
     } catch (error) {

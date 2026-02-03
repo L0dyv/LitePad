@@ -1,4 +1,3 @@
-import { ServerWebSocket } from 'bun'
 import * as db from '../db/index.js'
 import { verifyAccessToken, JwtPayload } from '../utils/jwt.js'
 import { ClientTab, processSyncRequest, dbTabToClientTab } from '../utils/conflict.js'
