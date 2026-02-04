@@ -36,7 +36,7 @@ interface Window {
         getImagePath: (hash: string, ext: string) => Promise<string>
         hasImage: (hash: string, ext: string) => Promise<boolean>
         saveDownloadedImage: (hash: string, ext: string, buffer: ArrayBuffer) => Promise<string>
-        readImage: (hash: string, ext: string) => Promise<Uint8Array>
+        readImage: (hash: string, ext: string) => Promise<ArrayBuffer>
         // Migration APIs
         migrateOldImage: (oldPath: string) => Promise<MigrateImageResult>
         checkOldImagesExist: (paths: string[]) => Promise<boolean[]>

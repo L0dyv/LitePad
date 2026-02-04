@@ -77,7 +77,7 @@ export interface TauriAPI {
     getImagePath: (hash: string, ext: string) => Promise<string>
     hasImage: (hash: string, ext: string) => Promise<boolean>
     saveDownloadedImage: (hash: string, ext: string, buffer: ArrayBuffer) => Promise<string>
-    readImage: (hash: string, ext: string) => Promise<Uint8Array>
+    readImage: (hash: string, ext: string) => Promise<ArrayBuffer>
     // Migration APIs
     migrateOldImage: (oldPath: string) => Promise<MigrateImageResult>
     checkOldImagesExist: (paths: string[]) => Promise<boolean[]>
@@ -151,7 +151,7 @@ export const tauriAPI: TauriAPI | undefined = isTauri ? {
 
     readImage: async (hash: string, ext: string) => {
         const result = await invoke<number[]>('read_image', { hash, ext })
-        return new Uint8Array(result)
+        return new Uint8Array(result).buffer
     },
 
     migrateOldImage: (oldPath: string) => invoke<MigrateImageResult>('migrate_old_image', { oldPath }),
