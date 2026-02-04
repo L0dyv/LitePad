@@ -185,7 +185,7 @@ class SyncWebSocket {
 
         // 处理冲突
         if (conflicts && conflicts.length > 0) {
-            emitSyncEvent({ type: 'conflict', data: { conflicts } })
+            emitSyncEvent({ type: 'conflict', data: { conflicts, serverTime } })
         }
 
         // 更新最后同步时间
@@ -248,7 +248,7 @@ class SyncWebSocket {
 
             // 触发冲突事件
             if (conflicts.length > 0) {
-                emitSyncEvent({ type: 'conflict', data: { conflicts } })
+                emitSyncEvent({ type: 'conflict', data: { conflicts, serverTime } })
             }
         }
 

@@ -177,7 +177,7 @@ export async function pushChanges(): Promise<SyncPushResult> {
 
     // 处理冲突
     if (result.conflicts.length > 0) {
-        emitSyncEvent({ type: 'conflict', data: { conflicts: result.conflicts } })
+        emitSyncEvent({ type: 'conflict', data: { conflicts: result.conflicts, serverTime: result.serverTime } })
     }
 
     // 更新最后同步时间

@@ -31,6 +31,7 @@ function App() {
     const [isImmersive, setIsImmersive] = useState(false)
     const [_dbInitialized, setDbInitialized] = useState(false)
     const [syncConflicts, setSyncConflicts] = useState<Conflict[]>([])
+    const [syncConflictsServerTime, setSyncConflictsServerTime] = useState<number | null>(null)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
     const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
     const pointerAccumRef = useRef(0)
@@ -69,16 +70,21 @@ function App() {
 
     // 监听同步事件
     useEffect(() => {
-        const unsubscribe = addSyncListener((event) => {
-            if (event.type === 'conflict' && event.data?.conflicts) {
-                setSyncConflicts(event.data.conflicts)
-            } else if (event.type === 'remote-changes') {
-                // 远程数据有变化，刷新本地数据
-                refreshCache().then(newData => {
-                    setData(newData)
-                }).catch(console.error)
-            }
-        })
+            const unsubscribe = addSyncListener((event) => {
+                if (event.type === 'conflict') {
+                    const data = event.data as any
+                    const conflicts = data?.conflicts
+                    if (Array.isArray(conflicts)) {
+                        setSyncConflicts(conflicts)
+                        setSyncConflictsServerTime(typeof data?.serverTime === 'number' ? data.serverTime : null)
+                    }
+                } else if (event.type === 'remote-changes') {
+                    // 远程数据有变化，刷新本地数据
+                    refreshCache().then(newData => {
+                        setData(newData)
+                    }).catch(console.error)
+                }
+            })
 
         return () => unsubscribe()
     }, [])
@@ -744,12 +750,16 @@ function App() {
             {syncConflicts.length > 0 && (
                 <ConflictResolver
                     conflicts={syncConflicts}
+                    serverTime={syncConflictsServerTime ?? undefined}
                     onResolved={() => {
                         refreshCache().then(newData => {
                             setData(newData)
                         }).catch(console.error)
                     }}
-                    onClose={() => setSyncConflicts([])}
+                    onClose={() => {
+                        setSyncConflicts([])
+                        setSyncConflictsServerTime(null)
+                    }}
                 />
             )}
         </div>

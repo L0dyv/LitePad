@@ -22,13 +22,36 @@ export interface Conflict {
 
 interface ConflictResolverProps {
     conflicts: Conflict[]
+    serverTime?: number
     onResolved: () => void
     onClose: () => void
 }
 
 type Resolution = 'local' | 'remote' | 'both'
 
-export function ConflictResolver({ conflicts, onResolved, onClose }: ConflictResolverProps) {
+function appendCloudSuffix(title: string): string {
+    const suffixBase = '（云端）'
+
+    if (!title.endsWith('）')) {
+        return `${title}${suffixBase}`
+    }
+
+    if (title.endsWith(suffixBase)) {
+        return title.replace(suffixBase, '（云端2）')
+    }
+
+    const match = title.match(/（云端(\d+)）$/)
+    if (match) {
+        const n = Number(match[1])
+        if (Number.isFinite(n) && n >= 2) {
+            return title.replace(/（云端(\d+)）$/, `（云端${n + 1}）`)
+        }
+    }
+
+    return `${title}${suffixBase}`
+}
+
+export function ConflictResolver({ conflicts, serverTime, onResolved, onClose }: ConflictResolverProps) {
     const { t } = useTranslation()
     const [currentIndex, setCurrentIndex] = useState(0)
     const [resolutions, setResolutions] = useState<Map<string, Resolution>>(new Map())
@@ -59,6 +82,7 @@ export function ConflictResolver({ conflicts, onResolved, onClose }: ConflictRes
 
         try {
             const tabsToUpdate: Tab[] = []
+            const resolvedServerTime = serverTime ?? Date.now()
 
             for (const conflict of conflicts) {
                 const resolution = resolutions.get(conflict.local.id)
@@ -68,7 +92,8 @@ export function ConflictResolver({ conflicts, onResolved, onClose }: ConflictRes
                     tabsToUpdate.push({
                         ...conflict.local,
                         localVersion: Math.max(conflict.local.localVersion, conflict.remote.version) + 1,
-                        syncedAt: null // 标记需要重新同步
+                        syncedAt: resolvedServerTime,
+                        updatedAt: Math.max(conflict.local.updatedAt, resolvedServerTime + 1) // 确保会被当作待同步
                     })
                 } else if (resolution === 'remote') {
                     // 使用远程版本
@@ -79,7 +104,7 @@ export function ConflictResolver({ conflicts, onResolved, onClose }: ConflictRes
                         createdAt: conflict.remote.createdAt,
                         updatedAt: conflict.remote.updatedAt,
                         localVersion: conflict.remote.version,
-                        syncedAt: Date.now(),
+                        syncedAt: resolvedServerTime,
                         deleted: conflict.remote.deleted
                     })
                 } else if (resolution === 'both') {
@@ -87,13 +112,14 @@ export function ConflictResolver({ conflicts, onResolved, onClose }: ConflictRes
                     // 更新本地版本
                     tabsToUpdate.push({
                         ...conflict.local,
-                        localVersion: conflict.local.localVersion + 1,
-                        syncedAt: null
+                        localVersion: Math.max(conflict.local.localVersion, conflict.remote.version) + 1,
+                        syncedAt: resolvedServerTime,
+                        updatedAt: Math.max(conflict.local.updatedAt, resolvedServerTime + 1)
                     })
                     // 创建远程版本的副本
                     tabsToUpdate.push({
                         id: crypto.randomUUID(),
-                        title: `${conflict.remote.title} (云端)`,
+                        title: appendCloudSuffix(conflict.remote.title),
                         content: conflict.remote.content,
                         createdAt: conflict.remote.createdAt,
                         updatedAt: Date.now(),
