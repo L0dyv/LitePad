@@ -30,7 +30,7 @@ dist-electron/
 src-tauri/target/
 
 # docs
-docs/
+# docs/
 .localdocs/
 
 
