@@ -59,7 +59,7 @@ function App() {
             }
 
             // 更新版本记录（用于判断后续升级是否需要迁移）
-            updateVersionRecord('2.0.0')
+            updateVersionRecord('2.0.1')
 
             setDbInitialized(true)
 
