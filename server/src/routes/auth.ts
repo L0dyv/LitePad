@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { v4 as uuidv4 } from 'uuid'
 import * as db from '../db/index.js'
-import { generateAccessToken, generateRefreshToken, hashPassword, verifyPassword } from '../utils/jwt.js'
+import { generateAccessToken, generateRefreshToken, hashPassword, verifyPassword, refreshAccessToken, verifyAccessToken } from '../utils/jwt.js'
 
 const auth = new Hono()
 
@@ -97,14 +97,11 @@ auth.post('/refresh', async (c) => {
             return c.json({ error: '缺少参数' }, 400)
         }
 
-        // 获取用户
-        const user = db.getUserById(userId)
-        if (!user) {
-            return c.json({ error: '用户不存在' }, 404)
+        // 验证 refresh token 并生成新的 access token
+        const accessToken = await refreshAccessToken(refreshToken, userId)
+        if (!accessToken) {
+            return c.json({ error: 'refresh token 无效' }, 401)
         }
-
-        // 生成新的 access token
-        const accessToken = generateAccessToken({ userId: user.id, email: user.email })
 
         return c.json({ accessToken })
     } catch (error) {
@@ -121,8 +118,13 @@ auth.post('/logout', async (c) => {
             return c.json({ error: '未授权' }, 401)
         }
 
-        // 可选：删除用户的所有刷新令牌
-        // 这里简化处理，只返回成功
+        const token = authHeader.slice('Bearer '.length)
+        const payload = verifyAccessToken(token)
+        if (!payload) {
+            return c.json({ error: '未授权' }, 401)
+        }
+
+        db.deleteUserRefreshTokens(payload.userId)
         return c.json({ success: true })
     } catch (error) {
         console.error('登出失败:', error)

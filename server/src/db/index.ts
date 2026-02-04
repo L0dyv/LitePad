@@ -158,6 +158,18 @@ export function getRefreshToken(tokenHash: string): DbRefreshToken | undefined {
     return stmt.get(tokenHash) as DbRefreshToken | undefined
 }
 
+export function getUserRefreshTokens(userId: string): DbRefreshToken[] {
+    const db = getDb()
+    const stmt = db.prepare('SELECT * FROM refresh_tokens WHERE user_id = ?')
+    return stmt.all(userId) as DbRefreshToken[]
+}
+
+export function updateRefreshTokenHash(id: string, tokenHash: string): void {
+    const db = getDb()
+    const stmt = db.prepare('UPDATE refresh_tokens SET token_hash = ? WHERE id = ?')
+    stmt.run(tokenHash, id)
+}
+
 export function deleteRefreshToken(id: string): void {
     const db = getDb()
     const stmt = db.prepare('DELETE FROM refresh_tokens WHERE id = ?')

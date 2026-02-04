@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 -- 索引：按用户查询刷新令牌
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
 
+-- 索引：按 refresh token hash 查询（刷新接口使用）
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
 -- 附件表（图片等）
 CREATE TABLE IF NOT EXISTS attachments (
     hash TEXT NOT NULL,

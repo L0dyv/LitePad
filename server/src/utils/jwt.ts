@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { v4 as uuidv4 } from 'uuid'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import * as db from '../db/index.js'
 
 // JWT 密钥（生产环境应从环境变量获取）
@@ -11,6 +12,14 @@ const REFRESH_TOKEN_EXPIRES_MS = 30 * 24 * 60 * 60 * 1000 // 30 天
 export interface JwtPayload {
     userId: string
     email: string
+}
+
+function sha256Hex(input: string): string {
+    return crypto.createHash('sha256').update(input).digest('hex')
+}
+
+function isBcryptHash(value: string): boolean {
+    return value.startsWith('$2')
 }
 
 // 生成 access token
@@ -31,7 +40,7 @@ export function verifyAccessToken(token: string): JwtPayload | null {
 // 生成 refresh token
 export async function generateRefreshToken(userId: string): Promise<string> {
     const token = uuidv4()
-    const tokenHash = await bcrypt.hash(token, 10)
+    const tokenHash = sha256Hex(token)
     const expiresAt = Date.now() + REFRESH_TOKEN_EXPIRES_MS
 
     db.createRefreshToken(uuidv4(), userId, tokenHash, expiresAt)
@@ -41,12 +50,53 @@ export async function generateRefreshToken(userId: string): Promise<string> {
 
 // 验证 refresh token 并返回新的 access token
 export async function refreshAccessToken(refreshToken: string, userId: string): Promise<string | null> {
-    // 获取用户的所有刷新令牌
+    // 验证 refresh token 并返回新的 access token
     const user = db.getUserById(userId)
     if (!user) return null
 
-    // 这里简化处理：直接生成新的 access token
-    // 实际应验证 refresh token 是否有效
+    const now = Date.now()
+    const refreshTokenHash = sha256Hex(refreshToken)
+
+    // Fast path: current implementation stores sha256(token) for lookup
+    let stored = db.getRefreshToken(refreshTokenHash)
+
+    // Extra safety: ensure token belongs to the requested user
+    if (stored && stored.user_id !== userId) {
+        stored = undefined
+    }
+
+    // Backward compatibility: older versions stored refreshToken as bcrypt hash (not directly queryable)
+    if (!stored) {
+        const userTokens = db.getUserRefreshTokens(userId)
+
+        for (const tokenRow of userTokens) {
+            if (tokenRow.expires_at < now) {
+                db.deleteRefreshToken(tokenRow.id)
+                continue
+            }
+
+            if (tokenRow.token_hash === refreshTokenHash) {
+                stored = tokenRow
+                break
+            }
+
+            if (isBcryptHash(tokenRow.token_hash)) {
+                const match = await bcrypt.compare(refreshToken, tokenRow.token_hash)
+                if (match) {
+                    stored = tokenRow
+                    // One-time migration to sha256 for fast lookup next time
+                    db.updateRefreshTokenHash(tokenRow.id, refreshTokenHash)
+                    break
+                }
+            }
+        }
+    } else if (stored.expires_at < now) {
+        db.deleteRefreshToken(stored.id)
+        return null
+    }
+
+    if (!stored) return null
+
     return generateAccessToken({ userId: user.id, email: user.email })
 }
 
