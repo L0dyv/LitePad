@@ -668,14 +668,6 @@
     text-align: center;
 }
 
-.sync-advanced {
-    margin-top: 8px;
-}
-
-.sync-advanced .settings-item {
-    background: var(--bg-primary);
-}
-
-.sync-advanced .settings-input {
+.sync-server-url .settings-input {
     min-width: 180px;
 }

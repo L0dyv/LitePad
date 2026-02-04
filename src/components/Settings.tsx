@@ -85,7 +85,6 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     const [syncConfig, setSyncConfig] = useState<SyncConfig | null>(null)
     const [syncStatus, setSyncStatus] = useState(getSyncStatus())
     const [showAuthModal, setShowAuthModal] = useState(false)
-    const [showAdvancedSync, setShowAdvancedSync] = useState(false)
     const [customServerUrl, setCustomServerUrl] = useState('')
     const [syncLoading, setSyncLoading] = useState(false)
 
@@ -571,6 +570,16 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                     </div>
                     <div className="settings-section">
                         <h3>{t('sync.title')}</h3>
+                        <div className="settings-item sync-server-url">
+                            <span>{t('sync.serverUrl')}</span>
+                            <input
+                                type="text"
+                                className="settings-input"
+                                value={customServerUrl}
+                                onChange={(e) => handleServerUrlChange(e.target.value)}
+                                placeholder={DEFAULT_SERVER_URL}
+                            />
+                        </div>
                         <label className="settings-item">
                             <span>{t('sync.enabled')}</span>
                             <input
@@ -616,29 +625,6 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                             >
                                                 {t('sync.logout')}
                                             </button>
-                                        </div>
-                                    </div>
-                                )}
-                                <div className="settings-item">
-                                    <span>{t('sync.advanced')}</span>
-                                    <button
-                                        className="view-shortcuts-btn"
-                                        onClick={() => setShowAdvancedSync(!showAdvancedSync)}
-                                    >
-                                        {showAdvancedSync ? '−' : '+'}
-                                    </button>
-                                </div>
-                                {showAdvancedSync && (
-                                    <div className="sync-advanced">
-                                        <div className="settings-item">
-                                            <span>{t('sync.serverUrl')}</span>
-                                            <input
-                                                type="text"
-                                                className="settings-input"
-                                                value={customServerUrl}
-                                                onChange={(e) => handleServerUrlChange(e.target.value)}
-                                                placeholder={DEFAULT_SERVER_URL}
-                                            />
                                         </div>
                                     </div>
                                 )}
