@@ -76,6 +76,27 @@ export const DEFAULT_EDITOR_TAB_INDENT_TEXT = '    '
 export const DEFAULT_EDITOR_LINE_HEIGHT = 1.6
 export const DEFAULT_EDITOR_CODE_BLOCK_HIGHLIGHT = false
 export const DEFAULT_EDITOR_QUICK_SYMBOL_INPUT = true
+const MIN_EDITOR_LINE_HEIGHT = 1
+const MAX_EDITOR_LINE_HEIGHT = 3
+
+function normalizeLineHeight(value: unknown): number | null {
+    if (typeof value === 'string' && value.trim() === '') return null
+    const parsed = typeof value === 'number' ? value : Number(value)
+    if (!Number.isFinite(parsed)) return null
+    const rounded = Math.round(parsed * 100) / 100
+    if (rounded < MIN_EDITOR_LINE_HEIGHT || rounded > MAX_EDITOR_LINE_HEIGHT) return null
+    return rounded
+}
+
+function withUnpinnedOrder(tabs: db.Tab[]): db.Tab[] {
+    let unpinnedIndex = 0
+    return tabs.map((tab) => {
+        if (tab.pinned) return tab
+        const next: db.Tab = { ...tab, unpinnedOrder: unpinnedIndex }
+        unpinnedIndex += 1
+        return next
+    })
+}
 
 function normalizeOrder(value: unknown, fallback: number): number {
     if (typeof value === 'number' && Number.isFinite(value)) return value
@@ -100,19 +121,21 @@ export function normalizeTabs(tabs: db.Tab[]): db.Tab[] {
         return a.order - b.order
     })
 
-    return sorted.map((t, index) => ({
+    const reindexed = sorted.map((t, index) => ({
         ...t,
         pinned: !!t.pinned,
         order: index
     }))
+    return withUnpinnedOrder(reindexed)
 }
 
 export function reindexTabs(tabs: db.Tab[]): db.Tab[] {
-    return tabs.map((t, index) => ({
+    const reindexed = tabs.map((t, index) => ({
         ...t,
         pinned: !!t.pinned,
         order: index
     }))
+    return withUnpinnedOrder(reindexed)
 }
 
 // ===== 同步 API（兼容层，内部使用 IndexedDB）=====
@@ -251,7 +274,8 @@ export function createTab(title?: string): db.Tab {
         syncedAt: null,
         deleted: false,
         pinned: false,
-        order: 0
+        order: 0,
+        unpinnedOrder: 0
     }
 }
 
@@ -357,12 +381,8 @@ export function saveEditorTabIndentText(text: string): void {
 export function loadEditorLineHeight(): number {
     try {
         const stored = localStorage.getItem(EDITOR_LINE_HEIGHT_KEY)
-        if (stored) {
-            const value = Number(stored)
-            if (value === 1.4 || value === 1.6 || value === 1.8) {
-                return value
-            }
-        }
+        const normalized = normalizeLineHeight(stored)
+        if (normalized !== null) return normalized
     } catch (e) {
         console.error('加载编辑器行间距设置失败:', e)
     }
@@ -371,7 +391,7 @@ export function loadEditorLineHeight(): number {
 
 // 保存编辑器行间距
 export function saveEditorLineHeight(height: number): void {
-    const normalized = height === 1.4 || height === 1.8 ? height : 1.6
+    const normalized = normalizeLineHeight(height) ?? DEFAULT_EDITOR_LINE_HEIGHT
     try {
         localStorage.setItem(EDITOR_LINE_HEIGHT_KEY, normalized.toString())
         db.setSetting(EDITOR_LINE_HEIGHT_KEY, normalized).catch(console.error)

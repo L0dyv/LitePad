@@ -28,7 +28,17 @@ export function HelpPanel({ isOpen, onClose, shortcuts }: HelpPanelProps) {
     return (
         <div className="help-overlay" onClick={onClose}>
             <div className="help-panel" onClick={(e) => e.stopPropagation()}>
-                <h2 className="help-title">{t('help.title')}</h2>
+                <div className="help-header">
+                    <h2 className="help-title">{t('settings.shortcutReference')}</h2>
+                    <button
+                        type="button"
+                        className="help-close"
+                        onClick={onClose}
+                        aria-label={t('dialog.cancel')}
+                    >
+                        ×
+                    </button>
+                </div>
 
                 <div className="help-section">
                     <h3 className="help-section-title">{t('help.sectionEditor')}</h3>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
+import { RotateCcw, Search, X } from 'lucide-react'
 import { Tab, ClosedTab, ArchivedTab } from '../utils/storage'
 import { ConfirmDialog } from './ConfirmDialog'
 import './TabSearchModal.css'
@@ -328,10 +329,7 @@ export function TabSearchModal({
 
                     {/* 搜索框 */}
                     <div className="search-header">
-                        <svg className="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="11" cy="11" r="8"></circle>
-                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                        </svg>
+                        <Search className="search-icon" size={16} strokeWidth={2} />
                         <input
                             ref={inputRef}
                             className="search-input"
@@ -381,20 +379,14 @@ export function TabSearchModal({
                                                         title={activeTab === 'archived' ? t('archive.restoreTooltip') : t('trash.restoreTooltip')}
                                                         onClick={(e) => { e.stopPropagation(); handleSelect(result) }}
                                                     >
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                            <polyline points="1 4 1 10 7 10"></polyline>
-                                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                                        </svg>
+                                                        <RotateCcw size={12} strokeWidth={2} />
                                                     </button>
                                                     <button
                                                         className="search-result-action delete"
                                                         title={activeTab === 'archived' ? t('archive.deleteTooltip') : t('trash.deleteTooltip')}
                                                         onClick={(e) => handleDelete(e, result)}
                                                     >
-                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                            <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                            <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                        </svg>
+                                                        <X size={12} strokeWidth={2} />
                                                     </button>
                                                 </div>
                                             )}

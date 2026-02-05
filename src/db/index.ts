@@ -14,6 +14,7 @@ export interface Tab {
     // UX 字段
     pinned?: boolean          // 是否固定（置顶）
     order?: number            // 自定义顺序（用于持久化排序）
+    unpinnedOrder?: number    // 取消固定后恢复到普通分组中的位置
 }
 
 // 已关闭的标签页（回收站）
@@ -199,7 +200,8 @@ export async function createTab(title: string = 'New Page'): Promise<Tab> {
         syncedAt: null,
         deleted: false,
         pinned: false,
-        order: 0
+        order: 0,
+        unpinnedOrder: 0
     }
     await db.tabs.put(tab)
     return tab

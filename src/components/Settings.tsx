@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Github, Info } from 'lucide-react'
 import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize, loadEditorTabIndentText, saveEditorTabIndentText, loadEditorLineHeight, saveEditorLineHeight, loadEditorCodeBlockHighlight, saveEditorCodeBlockHighlight, loadEditorQuickSymbolInput, saveEditorQuickSymbolInput } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult, UpdateInfo } from '../lib/tauri-api'
-import { FaGithub } from 'react-icons/fa'
 import packageJson from '../../package.json'
 import { AuthModal } from './AuthModal'
 import { isLoggedIn, getUserInfo, logout as authLogout } from '../sync/auth'
@@ -11,6 +11,20 @@ import { getConfig, enableSync, disableSync, DEFAULT_SERVER_URL, setConfig } fro
 import type { SyncConfig } from '../db'
 import { startSync, stopSync, getSyncStatus, manualSync } from '../sync'
 import './Settings.css'
+
+const LINE_HEIGHT_PRESETS = [1.4, 1.6, 1.8]
+const LINE_HEIGHT_MIN = 1
+const LINE_HEIGHT_MAX = 3
+
+function clampLineHeight(value: number): number {
+    if (!Number.isFinite(value)) return 1.6
+    const rounded = Math.round(value * 100) / 100
+    return Math.min(LINE_HEIGHT_MAX, Math.max(LINE_HEIGHT_MIN, rounded))
+}
+
+function isPresetLineHeight(value: number): boolean {
+    return LINE_HEIGHT_PRESETS.some(preset => Math.abs(preset - value) < 0.001)
+}
 
 interface SettingsProps {
     isOpen: boolean
@@ -219,9 +233,10 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
     }
 
     const handleEditorLineHeightChange = (height: number) => {
-        setCurrentEditorLineHeight(height)
-        saveEditorLineHeight(height)
-        onEditorLineHeightChange?.(height)
+        const normalized = clampLineHeight(height)
+        setCurrentEditorLineHeight(normalized)
+        saveEditorLineHeight(normalized)
+        onEditorLineHeightChange?.(normalized)
     }
 
     const handleEditorCodeBlockHighlightChange = (enabled: boolean) => {
@@ -579,25 +594,44 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                         </label>
                         <label className="settings-item">
                             <span>{t('settings.lineHeight')}</span>
-                            <select
-                                value={currentEditorLineHeight}
-                                onChange={(e) => handleEditorLineHeightChange(parseFloat(e.target.value))}
-                                className="settings-select"
-                            >
-                                <option value="1.4">{t('settings.lineHeightCompact')}</option>
-                                <option value="1.6">{t('settings.lineHeightStandard')}</option>
-                                <option value="1.8">{t('settings.lineHeightRelaxed')}</option>
-                            </select>
+                            <div className="line-height-controls">
+                                <select
+                                    value={isPresetLineHeight(currentEditorLineHeight) ? String(currentEditorLineHeight) : 'custom'}
+                                    onChange={(e) => {
+                                        if (e.target.value === 'custom') return
+                                        handleEditorLineHeightChange(parseFloat(e.target.value))
+                                    }}
+                                    className="settings-select"
+                                >
+                                    <option value="1.4">{t('settings.lineHeightCompact')}</option>
+                                    <option value="1.6">{t('settings.lineHeightStandard')}</option>
+                                    <option value="1.8">{t('settings.lineHeightRelaxed')}</option>
+                                    <option value="custom">{t('settings.customValue')}</option>
+                                </select>
+                                <input
+                                    type="number"
+                                    min={LINE_HEIGHT_MIN}
+                                    max={LINE_HEIGHT_MAX}
+                                    step="0.05"
+                                    className="settings-input line-height-input"
+                                    value={currentEditorLineHeight}
+                                    onChange={(e) => {
+                                        const parsed = Number(e.target.value)
+                                        if (Number.isNaN(parsed)) return
+                                        handleEditorLineHeightChange(parsed)
+                                    }}
+                                    onBlur={(e) => {
+                                        const parsed = Number(e.target.value)
+                                        handleEditorLineHeightChange(Number.isNaN(parsed) ? currentEditorLineHeight : parsed)
+                                    }}
+                                />
+                            </div>
                         </label>
                         <label className="settings-item">
                             <span className="settings-label-with-icon">
                                 {t('settings.codeBlockHighlight')}
                                 <span className="settings-info-icon" title={t('settings.reloadRequired')} aria-label={t('settings.reloadRequired')}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <circle cx="12" cy="12" r="10"></circle>
-                                        <line x1="12" y1="16" x2="12" y2="12"></line>
-                                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
-                                    </svg>
+                                    <Info size={14} strokeWidth={2} />
                                 </span>
                             </span>
                             <input
@@ -751,10 +785,7 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                             <span>{t('settings.shortcutReference')}</span>
                             <button
                                 className="view-shortcuts-btn"
-                                onClick={() => {
-                                    onClose()
-                                    onOpenHelp?.()
-                                }}
+                                onClick={() => onOpenHelp?.()}
                             >
                                 {t('settings.viewShortcuts')}
                             </button>
@@ -1008,7 +1039,7 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                                 onClick={() => tauriAPI?.openExternalUrl('https://github.com/L0dyv/LitePad')}
                                 title="https://github.com/L0dyv/LitePad"
                             >
-                                <FaGithub size={16} />
+                                <Github size={16} strokeWidth={2} />
                                 <span>GitHub</span>
                             </button>
                         </div>

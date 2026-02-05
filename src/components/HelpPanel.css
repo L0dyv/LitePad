@@ -15,7 +15,7 @@
 .help-panel {
     width: 600px;
     max-width: calc(100vw - 40px);
-    max-height: 80vh;
+    max-height: min(80vh, calc(100vh - 48px));
     overflow: auto;
     background: var(--bg-secondary);
     border: 1px solid var(--border);
@@ -24,10 +24,36 @@
     padding: 20px;
 }
 
+.help-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
 .help-title {
-    margin: 0 0 16px 0;
+    margin: 0;
     font-size: 18px;
     font-weight: 600;
+    color: var(--text-primary);
+}
+
+.help-close {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 20px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.help-close:hover {
+    background: var(--bg-hover);
     color: var(--text-primary);
 }
 
@@ -77,4 +103,3 @@
     color: var(--text-secondary);
     white-space: nowrap;
 }
-
