@@ -9,6 +9,26 @@ const DB_PATH = process.env.DB_PATH || path.join(__dirname, '../../data/litepad.
 // 数据库实例
 let db: Database.Database | null = null
 
+function ensureTabColumns(db: Database.Database): void {
+    try {
+        const columns = db.prepare("PRAGMA table_info('tabs')").all() as Array<{ name: string }>
+        const names = new Set(columns.map(c => c.name))
+
+        if (!names.has('pinned')) {
+            db.exec('ALTER TABLE tabs ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
+        }
+        if (!names.has('tab_order')) {
+            db.exec('ALTER TABLE tabs ADD COLUMN tab_order INTEGER NOT NULL DEFAULT 0')
+        }
+
+        // 兜底：保证已有行字段不为 NULL
+        db.exec('UPDATE tabs SET pinned = 0 WHERE pinned IS NULL')
+        db.exec('UPDATE tabs SET tab_order = 0 WHERE tab_order IS NULL')
+    } catch (error) {
+        console.warn('[DB] ensureTabColumns failed:', error)
+    }
+}
+
 // 获取数据库实例
 export function getDb(): Database.Database {
     if (!db) {
@@ -17,6 +37,7 @@ export function getDb(): Database.Database {
         db.pragma('foreign_keys = ON')
         // 初始化表结构
         db.exec(SCHEMA)
+        ensureTabColumns(db)
     }
     return db
 }
@@ -84,6 +105,8 @@ export function upsertTab(userId: string, tab: {
     created_at: number
     updated_at: number
     deleted: boolean
+    pinned: boolean
+    tab_order: number
 }): DbTab {
     const db = getDb()
 
@@ -99,18 +122,41 @@ export function upsertTab(userId: string, tab: {
                     content = ?,
                     version = ?,
                     updated_at = ?,
-                    deleted = ?
+                    deleted = ?,
+                    pinned = ?,
+                    tab_order = ?
                 WHERE user_id = ? AND id = ?
             `)
-            stmt.run(tab.title, tab.content, tab.version, tab.updated_at, tab.deleted ? 1 : 0, userId, tab.id)
+            stmt.run(
+                tab.title,
+                tab.content,
+                tab.version,
+                tab.updated_at,
+                tab.deleted ? 1 : 0,
+                tab.pinned ? 1 : 0,
+                tab.tab_order,
+                userId,
+                tab.id
+            )
         }
     } else {
         // 新建
         const stmt = db.prepare(`
-            INSERT INTO tabs (id, user_id, title, content, version, created_at, updated_at, deleted)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tabs (id, user_id, title, content, version, created_at, updated_at, deleted, pinned, tab_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `)
-        stmt.run(tab.id, userId, tab.title, tab.content, tab.version, tab.created_at, tab.updated_at, tab.deleted ? 1 : 0)
+        stmt.run(
+            tab.id,
+            userId,
+            tab.title,
+            tab.content,
+            tab.version,
+            tab.created_at,
+            tab.updated_at,
+            tab.deleted ? 1 : 0,
+            tab.pinned ? 1 : 0,
+            tab.tab_order
+        )
     }
 
     return getTab(userId, tab.id)!
@@ -124,6 +170,8 @@ export function bulkUpsertTabs(userId: string, tabs: Array<{
     created_at: number
     updated_at: number
     deleted: boolean
+    pinned: boolean
+    tab_order: number
 }>): DbTab[] {
     const db = getDb()
     const results: DbTab[] = []

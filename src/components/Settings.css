@@ -101,6 +101,28 @@
     font-size: 14px;
 }
 
+.settings-label-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.settings-info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    color: var(--text-secondary);
+    opacity: 0.9;
+    cursor: help;
+}
+
+.settings-info-icon:hover {
+    color: var(--text-primary);
+    opacity: 1;
+}
+
 .settings-item input[type="checkbox"] {
     width: 18px;
     height: 18px;

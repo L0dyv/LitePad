@@ -4,9 +4,10 @@ import { Editor } from './components/Editor'
 import { Sidebar } from './components/Sidebar'
 import { TitleBar } from './components/TitleBar'
 import { Settings } from './components/Settings'
-import { StatusBar } from './components/StatusBar'
+import { StatsOverlay } from './components/StatsOverlay'
+import { HelpPanel } from './components/HelpPanel'
 import { TabSearchModal, ModalTab } from './components/TabSearchModal'
-import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadStatusBar, StatusBarSettings, loadFont, loadEditorFont, loadEditorFontSize, saveClosedTab, popClosedTab, loadClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode, initStorage, refreshCache } from './utils/storage'
+import { loadData, saveData, createTab, AppData, loadShortcuts, ShortcutSettings, matchShortcut, loadFont, loadEditorFont, loadEditorFontSize, loadEditorTabIndentText, loadEditorLineHeight, loadEditorCodeBlockHighlight, loadEditorQuickSymbolInput, saveClosedTab, popClosedTab, loadClosedTabs, removeClosedTab, clearClosedTabs, ClosedTab, ArchivedTab, loadArchivedTabs, saveArchivedTab, removeArchivedTab, clearArchivedTabs, ZenModeSettings, loadZenMode, saveZenMode, initStorage, refreshCache, reindexTabs } from './utils/storage'
 import { initSync, addSyncListener } from './sync'
 import { migrateOldImageUrls, updateVersionRecord } from './utils/migration'
 import { ConflictResolver, Conflict } from './components/ConflictResolver'
@@ -16,13 +17,18 @@ function App() {
     const { t } = useTranslation()
     const [data, setData] = useState<AppData>(() => loadData())
     const [shortcuts, setShortcuts] = useState<ShortcutSettings>(() => loadShortcuts())
-    const [statusBarSettings, setStatusBarSettings] = useState<StatusBarSettings>(() => loadStatusBar())
     const [showSettings, setShowSettings] = useState(false)
     const [showSearch, setShowSearch] = useState(false)
+    const [showHelp, setShowHelp] = useState(false)
+    const [editorJump, setEditorJump] = useState<{ tabId: string; from: number; to: number; token: number } | null>(null)
     const [searchModalTab, setSearchModalTab] = useState<ModalTab>('active')
     const [currentFont, setCurrentFont] = useState(() => loadFont())
     const [editorFont, setEditorFont] = useState(() => loadEditorFont())
     const [editorFontSize, setEditorFontSize] = useState(() => loadEditorFontSize())
+    const [editorTabIndentText, setEditorTabIndentText] = useState(() => loadEditorTabIndentText())
+    const [editorLineHeight, setEditorLineHeight] = useState(() => loadEditorLineHeight())
+    const [editorCodeBlockHighlight, setEditorCodeBlockHighlight] = useState(() => loadEditorCodeBlockHighlight())
+    const [editorQuickSymbolInput, setEditorQuickSymbolInput] = useState(() => loadEditorQuickSymbolInput())
     const [closedTabs, setClosedTabs] = useState<ClosedTab[]>(() => loadClosedTabs())
     const [archivedTabs, setArchivedTabs] = useState<ArchivedTab[]>(() => loadArchivedTabs())
     const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() => loadZenMode())
@@ -33,9 +39,20 @@ function App() {
     const [syncConflicts, setSyncConflicts] = useState<Conflict[]>([])
     const [syncConflictsServerTime, setSyncConflictsServerTime] = useState<number | null>(null)
     const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const saveImmediatelyRef = useRef(false)
     const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(null)
     const pointerAccumRef = useRef(0)
     const appRootRef = useRef<HTMLDivElement>(null)
+    const jumpTokenRef = useRef(0)
+
+    const requestEditorJump = useCallback((tabId: string, from: number, to: number) => {
+        jumpTokenRef.current += 1
+        setEditorJump({ tabId, from, to, token: jumpTokenRef.current })
+    }, [])
+
+    const handleJumpApplied = useCallback((token: number) => {
+        setEditorJump(prev => (prev && prev.token === token ? null : prev))
+    }, [])
 
     // 初始化数据库（从 localStorage 迁移到 IndexedDB）
     useEffect(() => {
@@ -223,6 +240,12 @@ function App() {
         document.body.style.fontFamily = `'${currentFont}', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`
     }, [currentFont])
 
+    useEffect(() => {
+        const root = appRootRef.current
+        if (!root) return
+        root.style.setProperty('--editor-line-height', String(editorLineHeight))
+    }, [editorLineHeight])
+
     // 当前激活的标签页
     const activeTab = data.tabs.find(t => t.id === data.activeTabId) || data.tabs[0]
 
@@ -238,6 +261,16 @@ function App() {
 
     // 数据变化时保存
     useEffect(() => {
+        if (saveImmediatelyRef.current) {
+            saveImmediatelyRef.current = false
+            if (saveTimeoutRef.current) {
+                clearTimeout(saveTimeoutRef.current)
+                saveTimeoutRef.current = null
+            }
+            saveData(data)
+            return
+        }
+
         debounceSave(data)
     }, [data, debounceSave])
 
@@ -252,12 +285,15 @@ function App() {
             // 找到要关闭的标签页和其位置
             const tabIndex = prev.tabs.findIndex(t => t.id === id)
             const tabToClose = prev.tabs[tabIndex]
+            if (!tabToClose || tabToClose.pinned) {
+                return prev
+            }
             if (tabToClose) {
                 saveClosedTab(tabToClose, tabIndex)
                 // 刷新回收站列表
                 setClosedTabs(loadClosedTabs())
             }
-            const newTabs = prev.tabs.filter(t => t.id !== id)
+            const newTabs = reindexTabs(prev.tabs.filter(t => t.id !== id))
             const newActiveId = prev.activeTabId === id
                 ? newTabs[newTabs.length - 1]?.id || ''
                 : prev.activeTabId
@@ -277,7 +313,7 @@ function App() {
                 newName = `${baseName} ${counter}`
                 counter++
             }
-            const newTab = createTab(newName)
+            const newTab = { ...createTab(newName), order: prev.tabs.length, pinned: false }
             return {
                 tabs: [...prev.tabs, newTab],
                 activeTabId: newTab.id
@@ -294,10 +330,11 @@ function App() {
             setData(prev => {
                 const newTabs = [...prev.tabs]
                 // 恢复到原位置，如果位置超出范围则放到末尾
-                const insertIndex = Math.min(index, newTabs.length)
+                const pinnedCount = newTabs.filter(t => !!t.pinned).length
+                const insertIndex = Math.min(Math.max(index, pinnedCount), newTabs.length)
                 newTabs.splice(insertIndex, 0, tab)
                 return {
-                    tabs: newTabs,
+                    tabs: reindexTabs(newTabs),
                     activeTabId: tab.id
                 }
             })
@@ -307,36 +344,38 @@ function App() {
     }, [])
 
     // 从回收站恢复指定标签页
-    const handleRestoreFromTrash = useCallback((tab: ClosedTab) => {
+    const handleRestoreFromTrash = useCallback((tab: ClosedTab, jumpTo?: { from: number; to: number }) => {
         // 从回收站中移除该标签页
-        const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
-        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        const remaining = removeClosedTab(tab)
         setClosedTabs(remaining)
         // 恢复标签页到原位置
         const { closedAt, index, ...restoredTab } = tab
         setData(prev => {
             const newTabs = [...prev.tabs]
-            const insertIndex = Math.min(index, newTabs.length)
+            const pinnedCount = newTabs.filter(t => !!t.pinned).length
+            const insertIndex = Math.min(Math.max(index, pinnedCount), newTabs.length)
             newTabs.splice(insertIndex, 0, restoredTab)
             return {
-                tabs: newTabs,
+                tabs: reindexTabs(newTabs),
                 activeTabId: restoredTab.id
             }
         })
-    }, [closedTabs])
+        if (jumpTo) {
+            requestEditorJump(restoredTab.id, jumpTo.from, jumpTo.to)
+        }
+    }, [requestEditorJump])
 
     // 清空回收站
     const handleClearTrash = useCallback(() => {
-        localStorage.setItem('flashpad-closed-tabs', JSON.stringify([]))
+        clearClosedTabs()
         setClosedTabs([])
     }, [])
 
     // 从回收站删除单个标签页
     const handleDeleteFromTrash = useCallback((tab: ClosedTab) => {
-        const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
-        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        const remaining = removeClosedTab(tab)
         setClosedTabs(remaining)
-    }, [closedTabs])
+    }, [])
 
     // 归档标签页
     const handleArchiveTab = useCallback((id: string) => {
@@ -346,7 +385,7 @@ function App() {
                 saveArchivedTab(tabToArchive)
                 setArchivedTabs(loadArchivedTabs())
             }
-            const newTabs = prev.tabs.filter(t => t.id !== id)
+            const newTabs = reindexTabs(prev.tabs.filter(t => t.id !== id))
             // 如果归档的是当前激活的标签页，切换到最后一个
             const newActiveId = prev.activeTabId === id
                 ? newTabs[newTabs.length - 1]?.id || ''
@@ -356,16 +395,27 @@ function App() {
     }, [])
 
     // 从归档恢复标签页
-    const handleRestoreFromArchive = useCallback((tab: ArchivedTab) => {
+    const handleRestoreFromArchive = useCallback((tab: ArchivedTab, jumpTo?: { from: number; to: number }) => {
         const remaining = removeArchivedTab(tab)
         setArchivedTabs(remaining)
         // 恢复标签页
         const { archivedAt, ...restoredTab } = tab
-        setData(prev => ({
-            tabs: [...prev.tabs, restoredTab],
-            activeTabId: restoredTab.id
-        }))
-    }, [])
+        setData(prev => {
+            const newTabs = [...prev.tabs]
+            const pinnedCount = newTabs.filter(t => !!t.pinned).length
+            const wantsPinned = !!restoredTab.pinned
+            const rawIndex = typeof restoredTab.order === 'number' ? restoredTab.order : newTabs.length
+            const insertIndex = wantsPinned ? 0 : Math.min(Math.max(rawIndex, pinnedCount), newTabs.length)
+            newTabs.splice(insertIndex, 0, restoredTab)
+            return {
+                tabs: reindexTabs(newTabs),
+                activeTabId: restoredTab.id
+            }
+        })
+        if (jumpTo) {
+            requestEditorJump(restoredTab.id, jumpTo.from, jumpTo.to)
+        }
+    }, [requestEditorJump])
 
     // 从归档删除标签页
     const handleDeleteFromArchive = useCallback((tab: ArchivedTab) => {
@@ -551,7 +601,7 @@ function App() {
         setData(prev => ({
             ...prev,
             tabs: prev.tabs.map(t =>
-                t.id === id ? { ...t, title: newTitle, updatedAt: Date.now() } : t
+                t.id === id ? { ...t, title: newTitle, updatedAt: Date.now(), localVersion: (t.localVersion ?? 1) + 1 } : t
             )
         }))
     }
@@ -569,13 +619,67 @@ function App() {
         }
     }, [])
 
+    // 固定/取消固定标签页
+    const handleTabPinToggle = useCallback((id: string) => {
+        setData(prev => {
+            if (prev.tabs.length <= 1) return prev
+            const tabIndex = prev.tabs.findIndex(t => t.id === id)
+            if (tabIndex === -1) return prev
+
+            const tab = prev.tabs[tabIndex]
+            const nextPinned = !tab.pinned
+            const remaining = prev.tabs.filter(t => t.id !== id)
+
+            let newTabs: typeof prev.tabs
+            if (nextPinned) {
+                newTabs = [{ ...tab, pinned: true }, ...remaining]
+            } else {
+                const pinnedCount = remaining.filter(t => !!t.pinned).length
+                newTabs = [
+                    ...remaining.slice(0, pinnedCount),
+                    { ...tab, pinned: false },
+                    ...remaining.slice(pinnedCount)
+                ]
+            }
+
+            const now = Date.now()
+            const touched = reindexTabs(newTabs).map(t => ({
+                ...t,
+                updatedAt: now,
+                localVersion: (t.localVersion ?? 1) + 1
+            }))
+
+            saveImmediatelyRef.current = true
+            return { ...prev, tabs: touched }
+        })
+    }, [])
+
     // 标签页拖拽重新排序
     const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
         setData(prev => {
+            if (fromIndex === toIndex) return prev
+            if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.tabs.length || toIndex >= prev.tabs.length) {
+                return prev
+            }
+
+            const pinnedCount = prev.tabs.filter(t => !!t.pinned).length
+            const fromPinned = !!prev.tabs[fromIndex]?.pinned
+            const valid = fromPinned ? toIndex < pinnedCount : toIndex >= pinnedCount
+            if (!valid) return prev
+
             const newTabs = [...prev.tabs]
             const [movedTab] = newTabs.splice(fromIndex, 1)
             newTabs.splice(toIndex, 0, movedTab)
-            return { ...prev, tabs: newTabs }
+
+            const now = Date.now()
+            const touched = reindexTabs(newTabs).map(t => ({
+                ...t,
+                updatedAt: now,
+                localVersion: (t.localVersion ?? 1) + 1
+            }))
+
+            saveImmediatelyRef.current = true
+            return { ...prev, tabs: touched }
         })
     }, [])
 
@@ -585,7 +689,7 @@ function App() {
             ...prev,
             tabs: prev.tabs.map(t =>
                 t.id === prev.activeTabId
-                    ? { ...t, content, updatedAt: Date.now() }
+                    ? { ...t, content, updatedAt: Date.now(), localVersion: (t.localVersion ?? 1) + 1 }
                     : t
             )
         }))
@@ -655,6 +759,9 @@ function App() {
     // 字符统计
     const charCount = activeTab?.content.length || 0
     const lineCount = activeTab?.content.split('\n').length || 1
+    const activeJump = editorJump && activeTab && editorJump.tabId === activeTab.id
+        ? { from: editorJump.from, to: editorJump.to, token: editorJump.token }
+        : null
 
     return (
         <div ref={appRootRef} className={`app with-sidebar ${isImmersive ? 'immersive' : ''}`}>
@@ -682,6 +789,7 @@ function App() {
                         onTabClose={handleTabClose}
                         onTabAdd={handleTabAdd}
                         onTabRename={handleTabRename}
+                        onTabPinToggle={handleTabPinToggle}
                         onTabReorder={handleTabReorder}
                         onTabArchive={handleArchiveTab}
                         renameRequestToken={renameRequestToken}
@@ -695,35 +803,53 @@ function App() {
                 <main className="app-main">
                     {activeTab && (
                         <Editor
-                            key={`${activeTab.id}-${editorFont}-${editorFontSize}`}
+                            key={`${activeTab.id}-${editorFont}-${editorFontSize}-${editorTabIndentText === '\t' ? 'tab' : editorTabIndentText.length}-cbh${editorCodeBlockHighlight ? 1 : 0}-qsi${editorQuickSymbolInput ? 1 : 0}`}
                             content={activeTab.content}
                             onChange={handleContentChange}
                             onActivity={handleEditorActivity}
                             font={editorFont}
                             fontSize={editorFontSize}
+                            tabIndentText={editorTabIndentText}
+                            enableCodeBlockHighlight={editorCodeBlockHighlight}
+                            enableQuickSymbolInput={editorQuickSymbolInput}
+                            jumpTo={activeJump}
+                            onJumpApplied={handleJumpApplied}
                             autoFocus
                         />
                     )}
                 </main>
             </div>
-            <StatusBar
+            <StatsOverlay
                 lineCount={lineCount}
                 charCount={charCount}
-                settings={statusBarSettings}
-                onSettingsChange={setStatusBarSettings}
+                hidden={isImmersive && zenModeSettings.enabled && zenModeSettings.hideStatsCapsule}
+                onOpenHelp={() => setShowHelp(true)}
             />
             <Settings
                 isOpen={showSettings}
                 onClose={() => setShowSettings(false)}
+                onOpenHelp={() => setShowHelp(true)}
                 onShortcutsChange={refreshShortcuts}
                 onFontChange={setCurrentFont}
                 onEditorFontChange={setEditorFont}
                 onEditorFontSizeChange={setEditorFontSize}
+                onEditorTabIndentTextChange={setEditorTabIndentText}
+                onEditorLineHeightChange={setEditorLineHeight}
+                onEditorCodeBlockHighlightChange={setEditorCodeBlockHighlight}
+                onEditorQuickSymbolInputChange={setEditorQuickSymbolInput}
                 onLanguageChange={handleLanguageChange}
                 zenModeEnabled={zenModeSettings.enabled}
+                zenHideStatsCapsule={zenModeSettings.hideStatsCapsule}
                 onZenModeChange={(enabled) => {
                     setZenModeSettings(prev => {
                         const newSettings = { ...prev, enabled }
+                        saveZenMode(newSettings)
+                        return newSettings
+                    })
+                }}
+                onZenHideStatsCapsuleChange={(hidden) => {
+                    setZenModeSettings(prev => {
+                        const newSettings = { ...prev, hideStatsCapsule: hidden }
                         saveZenMode(newSettings)
                         return newSettings
                     })
@@ -736,8 +862,11 @@ function App() {
                 tabs={data.tabs}
                 archivedTabs={archivedTabs}
                 closedTabs={closedTabs}
-                onSelectTab={(tab) => {
+                onSelectTab={(tab, jumpTo) => {
                     setData(prev => ({ ...prev, activeTabId: tab.id }))
+                    if (jumpTo) {
+                        requestEditorJump(tab.id, jumpTo.from, jumpTo.to)
+                    }
                     setShowSearch(false)
                 }}
                 onRestoreArchived={handleRestoreFromArchive}
@@ -746,6 +875,11 @@ function App() {
                 onDeleteClosed={handleDeleteFromTrash}
                 onClearArchive={handleClearArchive}
                 onClearTrash={handleClearTrash}
+            />
+            <HelpPanel
+                isOpen={showHelp}
+                onClose={() => setShowHelp(false)}
+                shortcuts={shortcuts}
             />
             {syncConflicts.length > 0 && (
                 <ConflictResolver

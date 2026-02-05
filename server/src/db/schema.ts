@@ -19,6 +19,8 @@ CREATE TABLE IF NOT EXISTS tabs (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     deleted INTEGER NOT NULL DEFAULT 0,
+    pinned INTEGER NOT NULL DEFAULT 0,
+    tab_order INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (id, user_id),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
@@ -72,6 +74,8 @@ export interface DbTab {
     created_at: number
     updated_at: number
     deleted: number // SQLite 用 0/1 表示 boolean
+    pinned: number // SQLite 用 0/1 表示 boolean
+    tab_order: number
 }
 
 // User 类型定义

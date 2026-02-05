@@ -10,6 +10,8 @@ export interface ClientTab {
     updatedAt: number
     syncedAt: number | null
     deleted: boolean
+    pinned: boolean
+    order: number
 }
 
 // 冲突检测结果
@@ -135,6 +137,8 @@ export function dbTabToClientTab(dbTab: DbTab): Omit<ClientTab, 'syncedAt'> & { 
         version: dbTab.version,
         createdAt: dbTab.created_at,
         updatedAt: dbTab.updated_at,
-        deleted: dbTab.deleted === 1
+        deleted: dbTab.deleted === 1,
+        pinned: dbTab.pinned === 1,
+        order: dbTab.tab_order
     }
 }

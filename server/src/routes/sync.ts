@@ -3,7 +3,12 @@ import * as db from '../db/index.js'
 import { verifyAccessToken } from '../utils/jwt.js'
 import { ClientTab, processSyncRequest, dbTabToClientTab } from '../utils/conflict.js'
 
-const sync = new Hono()
+type AuthedVariables = {
+    userId: string
+    email: string
+}
+
+const sync = new Hono<{ Variables: AuthedVariables }>()
 
 // 认证中间件
 sync.use('*', async (c, next) => {
@@ -28,7 +33,7 @@ sync.use('*', async (c, next) => {
 // 全量拉取（首次同步）
 sync.get('/full', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const tabs = db.getUserTabs(userId, true) // 包含已删除的
 
         return c.json({
@@ -44,7 +49,7 @@ sync.get('/full', async (c) => {
 // 增量拉取（since 时间戳之后的变更）
 sync.get('/pull', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const since = parseInt(c.req.query('since') || '0')
 
         const tabs = db.getTabsSince(userId, since)
@@ -62,7 +67,7 @@ sync.get('/pull', async (c) => {
 // 推送变更
 sync.post('/push', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const { tabs: clientTabs } = await c.req.json<{ tabs: ClientTab[] }>()
 
         if (!Array.isArray(clientTabs)) {
@@ -87,7 +92,9 @@ sync.post('/push', async (c) => {
                 version: t.localVersion,
                 created_at: t.createdAt,
                 updated_at: t.updatedAt,
-                deleted: t.deleted
+                deleted: t.deleted,
+                pinned: !!t.pinned,
+                tab_order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
             })))
         }
 

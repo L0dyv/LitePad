@@ -14,6 +14,7 @@ export interface AppData {
 export interface ZenModeSettings {
     sidebarVisible: boolean
     enabled: boolean
+    hideStatsCapsule: boolean
 }
 
 // 快捷键配置
@@ -38,6 +39,10 @@ const STATUSBAR_KEY = 'flashpad-statusbar'
 const FONT_KEY = 'flashpad-font'
 const EDITOR_FONT_KEY = 'flashpad-editor-font'
 const EDITOR_FONT_SIZE_KEY = 'flashpad-editor-font-size'
+const EDITOR_TAB_INDENT_KEY = 'flashpad-editor-tab-indent'
+const EDITOR_LINE_HEIGHT_KEY = 'flashpad-editor-line-height'
+const EDITOR_CODE_BLOCK_HIGHLIGHT_KEY = 'flashpad-editor-code-block-highlight'
+const EDITOR_QUICK_SYMBOL_INPUT_KEY = 'flashpad-editor-quick-symbol-input'
 const ZEN_MODE_KEY = 'flashpad-zen-mode'
 
 // 默认快捷键
@@ -59,13 +64,56 @@ export const DEFAULT_STATUSBAR: StatusBarSettings = {
 // 默认 Zen Mode 设置
 export const DEFAULT_ZEN_MODE: ZenModeSettings = {
     sidebarVisible: true,
-    enabled: true
+    enabled: true,
+    hideStatsCapsule: false
 }
 
 // 默认字体
 export const DEFAULT_FONT = 'SimSun'
 export const DEFAULT_EDITOR_FONT = 'Consolas'
 export const DEFAULT_EDITOR_FONT_SIZE = 14
+export const DEFAULT_EDITOR_TAB_INDENT_TEXT = '    '
+export const DEFAULT_EDITOR_LINE_HEIGHT = 1.6
+export const DEFAULT_EDITOR_CODE_BLOCK_HIGHLIGHT = false
+export const DEFAULT_EDITOR_QUICK_SYMBOL_INPUT = true
+
+function normalizeOrder(value: unknown, fallback: number): number {
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string') {
+        const n = Number(value)
+        if (Number.isFinite(n)) return n
+    }
+    return fallback
+}
+
+export function normalizeTabs(tabs: db.Tab[]): db.Tab[] {
+    const withDefaults = tabs.map((t, index) => ({
+        ...t,
+        pinned: !!t.pinned,
+        order: normalizeOrder(t.order, index)
+    }))
+
+    const sorted = [...withDefaults].sort((a, b) => {
+        const ap = a.pinned ? 1 : 0
+        const bp = b.pinned ? 1 : 0
+        if (ap !== bp) return bp - ap
+        return a.order - b.order
+    })
+
+    return sorted.map((t, index) => ({
+        ...t,
+        pinned: !!t.pinned,
+        order: index
+    }))
+}
+
+export function reindexTabs(tabs: db.Tab[]): db.Tab[] {
+    return tabs.map((t, index) => ({
+        ...t,
+        pinned: !!t.pinned,
+        order: index
+    }))
+}
 
 // ===== 同步 API（兼容层，内部使用 IndexedDB）=====
 
@@ -76,10 +124,10 @@ export async function initStorage(): Promise<void> {
 
 // 加载数据（异步版本）
 export async function loadDataAsync(): Promise<AppData> {
-    const tabs = await db.getAllTabs()
+    const rawTabs = await db.getAllTabs()
     const appState = await db.getAppState()
 
-    if (tabs.length === 0) {
+    if (rawTabs.length === 0) {
         // 创建默认标签页
         const defaultTab = await db.createTab('New Page')
         await db.setAppState(defaultTab.id)
@@ -87,6 +135,22 @@ export async function loadDataAsync(): Promise<AppData> {
             tabs: [defaultTab],
             activeTabId: defaultTab.id
         }
+    }
+
+    const tabs = normalizeTabs(rawTabs)
+    // 持久化缺失的 pinned/order 或不连续的 order
+    const rawById = new Map(rawTabs.map(t => [t.id, t]))
+    const needsPersist = tabs.some(t => {
+        const raw = rawById.get(t.id)
+        if (!raw) return true
+        const rawPinnedIsValid = typeof raw.pinned === 'boolean'
+        const rawOrderIsValid = typeof raw.order === 'number' && Number.isFinite(raw.order)
+        if (!rawPinnedIsValid || !rawOrderIsValid) return true
+        return !!raw.pinned !== t.pinned || raw.order !== t.order
+    })
+
+    if (needsPersist) {
+        await db.bulkUpdateTabs(tabs)
     }
 
     return {
@@ -121,12 +185,14 @@ export function loadData(): AppData {
         if (stored) {
             const parsed = JSON.parse(stored)
             // 为旧数据添加新字段
-            const tabs = (parsed.tabs || []).map((t: any) => ({
+            const tabs = normalizeTabs((parsed.tabs || []).map((t: any, index: number) => ({
                 ...t,
-                localVersion: t.localVersion || 1,
-                syncedAt: t.syncedAt || null,
-                deleted: t.deleted || false
-            }))
+                localVersion: t.localVersion ?? 1,
+                syncedAt: t.syncedAt ?? null,
+                deleted: t.deleted ?? false,
+                pinned: t.pinned ?? false,
+                order: typeof t.order === 'number' ? t.order : index
+            })))
             cachedData = {
                 tabs,
                 activeTabId: parsed.activeTabId || tabs[0]?.id || ''
@@ -183,7 +249,9 @@ export function createTab(title?: string): db.Tab {
         updatedAt: Date.now(),
         localVersion: 1,
         syncedAt: null,
-        deleted: false
+        deleted: false,
+        pinned: false,
+        order: 0
     }
 }
 
@@ -261,7 +329,100 @@ export function saveEditorFontSize(size: number): void {
     }
 }
 
+// 加载 Tab 缩进设置
+export function loadEditorTabIndentText(): string {
+    try {
+        const stored = localStorage.getItem(EDITOR_TAB_INDENT_KEY)
+        if (stored === '\t' || stored === '  ' || stored === '    ') {
+            return stored
+        }
+    } catch (e) {
+        console.error('加载 Tab 缩进设置失败:', e)
+    }
+    return DEFAULT_EDITOR_TAB_INDENT_TEXT
+}
+
+// 保存 Tab 缩进设置
+export function saveEditorTabIndentText(text: string): void {
+    const normalized = text === '\t' || text === '  ' ? text : '    '
+    try {
+        localStorage.setItem(EDITOR_TAB_INDENT_KEY, normalized)
+        db.setSetting(EDITOR_TAB_INDENT_KEY, normalized).catch(console.error)
+    } catch (e) {
+        console.error('保存 Tab 缩进设置失败:', e)
+    }
+}
+
+// 加载编辑器行间距
+export function loadEditorLineHeight(): number {
+    try {
+        const stored = localStorage.getItem(EDITOR_LINE_HEIGHT_KEY)
+        if (stored) {
+            const value = Number(stored)
+            if (value === 1.4 || value === 1.6 || value === 1.8) {
+                return value
+            }
+        }
+    } catch (e) {
+        console.error('加载编辑器行间距设置失败:', e)
+    }
+    return DEFAULT_EDITOR_LINE_HEIGHT
+}
+
+// 保存编辑器行间距
+export function saveEditorLineHeight(height: number): void {
+    const normalized = height === 1.4 || height === 1.8 ? height : 1.6
+    try {
+        localStorage.setItem(EDITOR_LINE_HEIGHT_KEY, normalized.toString())
+        db.setSetting(EDITOR_LINE_HEIGHT_KEY, normalized).catch(console.error)
+    } catch (e) {
+        console.error('保存编辑器行间距设置失败:', e)
+    }
+}
+
 // 加载快捷键配置
+export function loadEditorCodeBlockHighlight(): boolean {
+    try {
+        const stored = localStorage.getItem(EDITOR_CODE_BLOCK_HIGHLIGHT_KEY)
+        if (stored === 'true') return true
+        if (stored === 'false') return false
+    } catch (e) {
+        console.error('加载代码块语法高亮设置失败:', e)
+    }
+    return DEFAULT_EDITOR_CODE_BLOCK_HIGHLIGHT
+}
+
+export function saveEditorCodeBlockHighlight(enabled: boolean): void {
+    const normalized = !!enabled
+    try {
+        localStorage.setItem(EDITOR_CODE_BLOCK_HIGHLIGHT_KEY, normalized.toString())
+        db.setSetting(EDITOR_CODE_BLOCK_HIGHLIGHT_KEY, normalized).catch(console.error)
+    } catch (e) {
+        console.error('保存代码块语法高亮设置失败:', e)
+    }
+}
+
+export function loadEditorQuickSymbolInput(): boolean {
+    try {
+        const stored = localStorage.getItem(EDITOR_QUICK_SYMBOL_INPUT_KEY)
+        if (stored === 'true') return true
+        if (stored === 'false') return false
+    } catch (e) {
+        console.error('加载快捷符号输入设置失败:', e)
+    }
+    return DEFAULT_EDITOR_QUICK_SYMBOL_INPUT
+}
+
+export function saveEditorQuickSymbolInput(enabled: boolean): void {
+    const normalized = !!enabled
+    try {
+        localStorage.setItem(EDITOR_QUICK_SYMBOL_INPUT_KEY, normalized.toString())
+        db.setSetting(EDITOR_QUICK_SYMBOL_INPUT_KEY, normalized).catch(console.error)
+    } catch (e) {
+        console.error('保存快捷符号输入设置失败:', e)
+    }
+}
+
 export function loadShortcuts(): ShortcutSettings {
     try {
         const stored = localStorage.getItem(SHORTCUTS_KEY)
@@ -378,6 +539,30 @@ export function popClosedTab(): db.ClosedTab | null {
     } catch (e) {
         console.error('从回收站恢复失败:', e)
         return null
+    }
+}
+
+// 从回收站移除指定标签页（永久删除/恢复前移除记录）
+export function removeClosedTab(tab: db.ClosedTab): db.ClosedTab[] {
+    try {
+        const closedTabs = loadClosedTabs()
+        const remaining = closedTabs.filter(t => !(t.id === tab.id && t.closedAt === tab.closedAt))
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify(remaining))
+        db.removeFromClosedTabs(tab.id, tab.closedAt).catch(console.error)
+        return remaining
+    } catch (e) {
+        console.error('从回收站移除失败:', e)
+        return loadClosedTabs()
+    }
+}
+
+// 清空回收站
+export function clearClosedTabs(): void {
+    try {
+        localStorage.setItem('flashpad-closed-tabs', JSON.stringify([]))
+        db.clearClosedTabs().catch(console.error)
+    } catch (e) {
+        console.error('清空回收站失败:', e)
     }
 }
 

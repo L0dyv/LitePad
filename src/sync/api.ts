@@ -12,6 +12,8 @@ interface ServerTab {
     createdAt: number
     updatedAt: number
     deleted: boolean
+    pinned: boolean
+    order: number
 }
 
 // 同步冲突
@@ -57,7 +59,9 @@ export async function fullSync(): Promise<ServerTab[]> {
             updatedAt: t.updatedAt,
             localVersion: t.version,
             syncedAt: serverTime,
-            deleted: t.deleted
+            deleted: t.deleted,
+            pinned: t.pinned,
+            order: t.order
         }))
         await bulkUpdateTabs(localTabs)
     }
@@ -97,7 +101,9 @@ export async function pullChanges(since?: number): Promise<ServerTab[]> {
             updatedAt: t.updatedAt,
             localVersion: t.version,
             syncedAt: serverTime,
-            deleted: t.deleted
+            deleted: t.deleted,
+            pinned: t.pinned,
+            order: t.order
         }))
         await bulkUpdateTabs(localTabs)
         emitSyncEvent({ type: 'remote-changes', data: { tabs: localTabs } })
@@ -142,7 +148,9 @@ export async function pushChanges(): Promise<SyncPushResult> {
                 createdAt: t.createdAt,
                 updatedAt: t.updatedAt,
                 syncedAt: t.syncedAt,
-                deleted: t.deleted
+                deleted: t.deleted,
+                pinned: !!t.pinned,
+                order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
             }))
         })
     })
@@ -169,7 +177,9 @@ export async function pushChanges(): Promise<SyncPushResult> {
             updatedAt: t.updatedAt,
             localVersion: t.version,
             syncedAt: result.serverTime,
-            deleted: t.deleted
+            deleted: t.deleted,
+            pinned: t.pinned,
+            order: t.order
         }))
         await bulkUpdateTabs(localTabs)
         emitSyncEvent({ type: 'remote-changes', data: { tabs: localTabs } })

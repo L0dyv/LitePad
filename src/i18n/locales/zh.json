@@ -6,10 +6,24 @@
     "settings": {
         "title": "设置",
         "general": "常规",
+        "editor": "编辑器",
+        "appearance": "外观",
+        "system": "系统",
         "language": "语言",
         "font": "界面字体",
         "editorFont": "编辑器字体",
         "editorFontSize": "编辑器字号",
+        "tabIndent": "Tab 插入内容",
+        "tabIndent4Spaces": "4 个空格",
+        "tabIndent2Spaces": "2 个空格",
+        "tabIndentTab": "Tab 字符",
+        "lineHeight": "行间距",
+        "lineHeightCompact": "紧凑 (1.4)",
+        "lineHeightStandard": "标准 (1.6)",
+        "lineHeightRelaxed": "宽松 (1.8)",
+        "codeBlockHighlight": "代码块语法高亮",
+        "quickSymbolInput": "快捷符号输入",
+        "reloadRequired": "刷新页面生效 (F5)",
         "autoLaunch": "开机自启动",
         "alwaysOnTop": "窗口置顶",
         "shortcuts": "快捷键",
@@ -32,6 +46,7 @@
         "version": "版本",
         "zenMode": "禅模式",
         "zenModeEnabled": "启用禅模式",
+        "zenHideStatsCapsule": "隐藏统计胶囊",
         "toggleSidebar": "切换侧边栏",
         "backup": "备份",
         "backupDirectory": "备份目录",
@@ -73,6 +88,18 @@
         "upToDate": "已是最新版本",
         "checkUpdateFailed": "检查更新失败"
     },
+    "help": {
+        "title": "帮助",
+        "sectionEditor": "编辑器",
+        "sectionLists": "列表",
+        "sectionTabs": "标签页",
+        "sectionSystem": "系统",
+        "findInEditor": "在编辑器中查找",
+        "indent": "增加缩进",
+        "outdent": "减少缩进",
+        "continueList": "列表自动续行",
+        "openSettings": "打开设置"
+    },
     "statusBar": {
         "showShortcuts": "显示快捷键提示",
         "showLineCount": "显示行数",
@@ -83,6 +110,8 @@
     },
     "tabBar": {
         "rename": "重命名",
+        "pin": "固定标签页",
+        "unpin": "取消固定",
         "close": "关闭",
         "closeRight": "关闭右侧标签页",
         "closeOthers": "关闭其他标签页",
@@ -194,4 +223,4 @@
         "resolve": "解决冲突",
         "empty": "(空内容)"
     }
-}
+}\n

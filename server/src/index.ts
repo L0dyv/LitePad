@@ -8,6 +8,7 @@ import sync from './routes/sync.js'
 import attachments from './routes/attachments.js'
 import { authenticateWs, addConnection, removeConnection, handleWsMessage, connections } from './ws/handler.js'
 import { getDb, closeDb } from './db/index.js'
+import type WebSocket from 'ws'
 
 const app = new Hono()
 

@@ -1,0 +1,72 @@
+.stats-overlay {
+    position: fixed;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    z-index: 900;
+}
+
+.stats-capsule {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-size: 12px;
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.stats-capsule:hover {
+    opacity: 1;
+}
+
+.stats-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.stats-icon {
+    color: var(--text-secondary);
+}
+
+.stats-value {
+    color: var(--text-primary);
+    font-variant-numeric: tabular-nums;
+}
+
+.stats-divider {
+    width: 1px;
+    height: 14px;
+    background: var(--border);
+    opacity: 0.6;
+    margin: 0 10px;
+}
+
+.stats-help-button {
+    width: 32px;
+    height: 32px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    color: var(--text-secondary);
+    opacity: 0.7;
+    transition: opacity 0.2s ease, color 0.2s ease;
+    cursor: pointer;
+}
+
+.stats-help-button:hover {
+    opacity: 1;
+    color: var(--text-primary);
+}
+

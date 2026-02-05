@@ -105,7 +105,9 @@ class SyncWebSocket {
                 createdAt: t.createdAt,
                 updatedAt: t.updatedAt,
                 syncedAt: t.syncedAt,
-                deleted: t.deleted
+                deleted: t.deleted,
+                pinned: !!t.pinned,
+                order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
             }))
         })
     }
@@ -177,7 +179,9 @@ class SyncWebSocket {
                 updatedAt: t.updatedAt,
                 localVersion: t.version || t.localVersion,
                 syncedAt: serverTime,
-                deleted: t.deleted
+                deleted: t.deleted,
+                pinned: !!t.pinned,
+                order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
             }))
             await bulkUpdateTabs(localTabs)
             emitSyncEvent({ type: 'remote-changes', data: { tabs: localTabs } })
@@ -217,7 +221,9 @@ class SyncWebSocket {
                         updatedAt: remoteTab.updatedAt,
                         localVersion: remoteTab.version || remoteTab.localVersion,
                         syncedAt: serverTime,
-                        deleted: remoteTab.deleted
+                        deleted: remoteTab.deleted,
+                        pinned: !!remoteTab.pinned,
+                        order: typeof remoteTab.order === 'number' && Number.isFinite(remoteTab.order) ? remoteTab.order : 0
                     })
                 } else if (localTab.syncedAt === null) {
                     // 本地是新创建未同步的，标记为冲突
@@ -235,7 +241,9 @@ class SyncWebSocket {
                         updatedAt: remoteTab.updatedAt,
                         localVersion: remoteTab.version || remoteTab.localVersion,
                         syncedAt: serverTime,
-                        deleted: remoteTab.deleted
+                        deleted: remoteTab.deleted,
+                        pinned: !!remoteTab.pinned,
+                        order: typeof remoteTab.order === 'number' && Number.isFinite(remoteTab.order) ? remoteTab.order : 0
                     })
                 }
             }

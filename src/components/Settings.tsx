@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize } from '../utils/storage'
+import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize, loadEditorTabIndentText, saveEditorTabIndentText, loadEditorLineHeight, saveEditorLineHeight, loadEditorCodeBlockHighlight, saveEditorCodeBlockHighlight, loadEditorQuickSymbolInput, saveEditorQuickSymbolInput } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult, UpdateInfo } from '../lib/tauri-api'
 import { FaGithub } from 'react-icons/fa'
@@ -15,13 +15,20 @@ import './Settings.css'
 interface SettingsProps {
     isOpen: boolean
     onClose: () => void
+    onOpenHelp?: () => void
     onShortcutsChange?: () => void
     onFontChange?: (font: string) => void
     onEditorFontChange?: (font: string) => void
     onEditorFontSizeChange?: (size: number) => void
+    onEditorTabIndentTextChange?: (text: string) => void
+    onEditorLineHeightChange?: (height: number) => void
+    onEditorCodeBlockHighlightChange?: (enabled: boolean) => void
+    onEditorQuickSymbolInputChange?: (enabled: boolean) => void
     onLanguageChange?: (lang: string) => void
     zenModeEnabled?: boolean
     onZenModeChange?: (enabled: boolean) => void
+    zenHideStatsCapsule?: boolean
+    onZenHideStatsCapsuleChange?: (hidden: boolean) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -48,7 +55,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onLanguageChange, zenModeEnabled, onZenModeChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onEditorTabIndentTextChange, onEditorLineHeightChange, onEditorCodeBlockHighlightChange, onEditorQuickSymbolInputChange, onLanguageChange, zenModeEnabled, onZenModeChange, zenHideStatsCapsule, onZenHideStatsCapsuleChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -61,7 +68,10 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         'SimSun', 'Microsoft YaHei', 'SimHei', 'KaiTi', 'FangSong', 'Consolas', 'Segoe UI'
     ])
     const [currentEditorFontSize, setCurrentEditorFontSize] = useState(() => loadEditorFontSize())
-    const [showShortcutHelp, setShowShortcutHelp] = useState(false)
+    const [currentEditorTabIndentText, setCurrentEditorTabIndentText] = useState(() => loadEditorTabIndentText())
+    const [currentEditorLineHeight, setCurrentEditorLineHeight] = useState(() => loadEditorLineHeight())
+    const [currentEditorCodeBlockHighlight, setCurrentEditorCodeBlockHighlight] = useState(() => loadEditorCodeBlockHighlight())
+    const [currentEditorQuickSymbolInput, setCurrentEditorQuickSymbolInput] = useState(() => loadEditorQuickSymbolInput())
 
     // Backup states
     const [backupSettings, setBackupSettings] = useState<BackupSettings>({
@@ -102,6 +112,11 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         setCurrentFont(loadFont())
         // 获取当前编辑器字体
         setCurrentEditorFont(loadEditorFont())
+        setCurrentEditorFontSize(loadEditorFontSize())
+        setCurrentEditorTabIndentText(loadEditorTabIndentText())
+        setCurrentEditorLineHeight(loadEditorLineHeight())
+        setCurrentEditorCodeBlockHighlight(loadEditorCodeBlockHighlight())
+        setCurrentEditorQuickSymbolInput(loadEditorQuickSymbolInput())
         // 获取系统字体列表
         window.electronAPI?.getSystemFonts().then((fonts) => {
             if (fonts && fonts.length > 0) {
@@ -195,6 +210,30 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
         setCurrentEditorFontSize(size)
         saveEditorFontSize(size)
         onEditorFontSizeChange?.(size)
+    }
+
+    const handleEditorTabIndentTextChange = (text: string) => {
+        setCurrentEditorTabIndentText(text)
+        saveEditorTabIndentText(text)
+        onEditorTabIndentTextChange?.(text)
+    }
+
+    const handleEditorLineHeightChange = (height: number) => {
+        setCurrentEditorLineHeight(height)
+        saveEditorLineHeight(height)
+        onEditorLineHeightChange?.(height)
+    }
+
+    const handleEditorCodeBlockHighlightChange = (enabled: boolean) => {
+        setCurrentEditorCodeBlockHighlight(enabled)
+        saveEditorCodeBlockHighlight(enabled)
+        onEditorCodeBlockHighlightChange?.(enabled)
+    }
+
+    const handleEditorQuickSymbolInputChange = (enabled: boolean) => {
+        setCurrentEditorQuickSymbolInput(enabled)
+        saveEditorQuickSymbolInput(enabled)
+        onEditorQuickSymbolInputChange?.(enabled)
     }
 
     const handleResetShortcut = useCallback((key: keyof ShortcutSettings) => {
@@ -322,6 +361,10 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
             'flashpad-font',
             'flashpad-editor-font',
             'flashpad-editor-font-size',
+            'flashpad-editor-tab-indent',
+            'flashpad-editor-line-height',
+            'flashpad-editor-code-block-highlight',
+            'flashpad-editor-quick-symbol-input',
             'flashpad-zen-mode',
             'flashpad-statusbar'
         ]
@@ -429,6 +472,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
     if (!isOpen) return null
 
     // 快捷键帮助弹窗
+    /*
     if (showShortcutHelp) {
         return (
             <div className="settings-overlay" onClick={() => setShowShortcutHelp(false)}>
@@ -485,6 +529,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
             </div>
         )
     }
+    */
 
     return (
         <div className="settings-overlay" onClick={onClose}>
@@ -495,30 +540,7 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                 </div>
                 <div className="settings-content">
                     <div className="settings-section">
-                        <h3>{t('settings.general')}</h3>
-                        <label className="settings-item">
-                            <span>{t('settings.language')}</span>
-                            <select
-                                value={currentLang}
-                                onChange={(e) => handleLanguageChange(e.target.value)}
-                                className="settings-select"
-                            >
-                                <option value="zh">{t('languages.zh')}</option>
-                                <option value="en">{t('languages.en')}</option>
-                            </select>
-                        </label>
-                        <label className="settings-item">
-                            <span>{t('settings.font')}</span>
-                            <select
-                                value={currentFont}
-                                onChange={(e) => handleFontChange(e.target.value)}
-                                className="settings-select font-select"
-                            >
-                                {systemFonts.map((font) => (
-                                    <option key={font} value={font}>{font}</option>
-                                ))}
-                            </select>
-                        </label>
+                        <h3>{t('settings.editor')}</h3>
                         <label className="settings-item">
                             <span>{t('settings.editorFont')}</span>
                             <select
@@ -544,6 +566,84 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                             </select>
                         </label>
                         <label className="settings-item">
+                            <span>{t('settings.tabIndent')}</span>
+                            <select
+                                value={currentEditorTabIndentText}
+                                onChange={(e) => handleEditorTabIndentTextChange(e.target.value)}
+                                className="settings-select"
+                            >
+                                <option value="    ">{t('settings.tabIndent4Spaces')}</option>
+                                <option value="  ">{t('settings.tabIndent2Spaces')}</option>
+                                <option value={'\t'}>{t('settings.tabIndentTab')}</option>
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.lineHeight')}</span>
+                            <select
+                                value={currentEditorLineHeight}
+                                onChange={(e) => handleEditorLineHeightChange(parseFloat(e.target.value))}
+                                className="settings-select"
+                            >
+                                <option value="1.4">{t('settings.lineHeightCompact')}</option>
+                                <option value="1.6">{t('settings.lineHeightStandard')}</option>
+                                <option value="1.8">{t('settings.lineHeightRelaxed')}</option>
+                            </select>
+                        </label>
+                        <label className="settings-item">
+                            <span className="settings-label-with-icon">
+                                {t('settings.codeBlockHighlight')}
+                                <span className="settings-info-icon" title={t('settings.reloadRequired')} aria-label={t('settings.reloadRequired')}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <line x1="12" y1="16" x2="12" y2="12"></line>
+                                        <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                                    </svg>
+                                </span>
+                            </span>
+                            <input
+                                type="checkbox"
+                                checked={currentEditorCodeBlockHighlight}
+                                onChange={(e) => handleEditorCodeBlockHighlightChange(e.target.checked)}
+                            />
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.quickSymbolInput')}</span>
+                            <input
+                                type="checkbox"
+                                checked={currentEditorQuickSymbolInput}
+                                onChange={(e) => handleEditorQuickSymbolInputChange(e.target.checked)}
+                            />
+                        </label>
+                    </div>
+                    <div className="settings-section">
+                        <h3>{t('settings.appearance')}</h3>
+                        <label className="settings-item">
+                            <span>{t('settings.font')}</span>
+                            <select
+                                value={currentFont}
+                                onChange={(e) => handleFontChange(e.target.value)}
+                                className="settings-select font-select"
+                            >
+                                {systemFonts.map((font) => (
+                                    <option key={font} value={font}>{font}</option>
+                                ))}
+                            </select>
+                        </label>
+                    </div>
+                    <div className="settings-section">
+                        <h3>{t('settings.system')}</h3>
+                        <label className="settings-item">
+                            <span>{t('settings.language')}</span>
+                            <select
+                                value={currentLang}
+                                onChange={(e) => handleLanguageChange(e.target.value)}
+                                className="settings-select"
+                            >
+                                <option value="zh">{t('languages.zh')}</option>
+                                <option value="en">{t('languages.en')}</option>
+                            </select>
+                        </label>
+                        <label className="settings-item">
                             <span>{t('settings.autoLaunch')}</span>
                             <input
                                 type="checkbox"
@@ -565,6 +665,15 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                                 type="checkbox"
                                 checked={zenModeEnabled ?? true}
                                 onChange={(e) => onZenModeChange?.(e.target.checked)}
+                            />
+                        </label>
+                        <label className="settings-item">
+                            <span>{t('settings.zenHideStatsCapsule')}</span>
+                            <input
+                                type="checkbox"
+                                checked={zenHideStatsCapsule ?? false}
+                                disabled={!(zenModeEnabled ?? true)}
+                                onChange={(e) => onZenHideStatsCapsuleChange?.(e.target.checked)}
                             />
                         </label>
                     </div>
@@ -642,9 +751,12 @@ export function Settings({ isOpen, onClose, onShortcutsChange, onFontChange, onE
                             <span>{t('settings.shortcutReference')}</span>
                             <button
                                 className="view-shortcuts-btn"
-                                onClick={() => setShowShortcutHelp(true)}
+                                onClick={() => {
+                                    onClose()
+                                    onOpenHelp?.()
+                                }}
                             >
-                                {t('settings.viewShortcuts')} ⌨️
+                                {t('settings.viewShortcuts')}
                             </button>
                         </div>
 

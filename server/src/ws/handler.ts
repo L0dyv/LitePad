@@ -1,4 +1,5 @@
 import * as db from '../db/index.js'
+import WebSocket from 'ws'
 import { verifyAccessToken, JwtPayload } from '../utils/jwt.js'
 import { ClientTab, processSyncRequest, dbTabToClientTab } from '../utils/conflict.js'
 
@@ -127,7 +128,9 @@ function handlePush(ws: WebSocket, client: ClientInfo, clientTabs: ClientTab[]):
             version: t.localVersion,
             created_at: t.createdAt,
             updated_at: t.updatedAt,
-            deleted: t.deleted
+            deleted: t.deleted,
+            pinned: !!t.pinned,
+            tab_order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
         })))
 
         // 广播变更给用户的其他设备
@@ -140,7 +143,9 @@ function handlePush(ws: WebSocket, client: ClientInfo, clientTabs: ClientTab[]):
                 version: t.localVersion,
                 createdAt: t.createdAt,
                 updatedAt: t.updatedAt,
-                deleted: t.deleted
+                deleted: t.deleted,
+                pinned: !!t.pinned,
+                order: typeof t.order === 'number' && Number.isFinite(t.order) ? t.order : 0
             })),
             serverTime: Date.now()
         }, ws)

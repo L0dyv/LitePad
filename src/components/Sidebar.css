@@ -32,6 +32,28 @@
     user-select: none;
 }
 
+.sidebar-tab-label {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+}
+
+.sidebar-tab-pin {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.sidebar-tab.active .sidebar-tab-pin {
+    color: var(--accent);
+}
+
 .sidebar-tab:hover {
     background: var(--bg-hover);
 }

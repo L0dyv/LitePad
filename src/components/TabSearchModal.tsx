@@ -13,20 +13,29 @@ interface TabSearchModalProps {
     tabs: Tab[]
     archivedTabs: ArchivedTab[]
     closedTabs: ClosedTab[]
-    onSelectTab: (tab: Tab) => void
-    onRestoreArchived: (tab: ArchivedTab) => void
-    onRestoreClosed: (tab: ClosedTab) => void
+    onSelectTab: (tab: Tab, jumpTo?: JumpTarget) => void
+    onRestoreArchived: (tab: ArchivedTab, jumpTo?: JumpTarget) => void
+    onRestoreClosed: (tab: ClosedTab, jumpTo?: JumpTarget) => void
     onDeleteArchived?: (tab: ArchivedTab) => void
     onDeleteClosed?: (tab: ClosedTab) => void
     onClearArchive?: () => void
     onClearTrash?: () => void
 }
 
+interface JumpTarget {
+    from: number
+    to: number
+    line?: number
+    column?: number
+}
+
 interface SearchResult {
     tab: Tab | ArchivedTab | ClosedTab
     type: ModalTab
-    matchTitle: boolean
-    matchContent: boolean
+    kind: 'tab' | 'title' | 'content'
+    jumpTo?: JumpTarget
+    titleHighlight?: { from: number; to: number }
+    preview?: { text: string; matchStart: number; matchEnd: number }
 }
 
 export function TabSearchModal({
@@ -47,6 +56,7 @@ export function TabSearchModal({
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<ModalTab>(defaultTab)
     const [query, setQuery] = useState('')
+    const [debouncedQuery, setDebouncedQuery] = useState('')
     const [selectedIndex, setSelectedIndex] = useState(0)
     const [confirmDialog, setConfirmDialog] = useState<{
         type: 'clearArchive' | 'clearTrash' | 'deleteArchived' | 'deleteClosed'
@@ -60,40 +70,111 @@ export function TabSearchModal({
         if (isOpen) {
             setActiveTab(defaultTab)
             setQuery('')
+            setDebouncedQuery('')
             setSelectedIndex(0)
             setTimeout(() => inputRef.current?.focus(), 0)
         }
     }, [isOpen, defaultTab])
 
+    useEffect(() => {
+        const handle = window.setTimeout(() => setDebouncedQuery(query), 300)
+        return () => window.clearTimeout(handle)
+    }, [query])
+
     // 根据当前 tab 和搜索词过滤结果
     const results = useMemo((): SearchResult[] => {
         const searchResults: SearchResult[] = []
-        const lowerQuery = query.toLowerCase().trim()
-        const shouldMatch = lowerQuery.length > 0
+        const q = debouncedQuery.trim()
+        const lowerQuery = q.toLowerCase()
+        const hasQuery = lowerQuery.length > 0
 
-        const filterTab = (tab: Tab | ArchivedTab | ClosedTab, type: ModalTab) => {
-            const matchTitle = shouldMatch ? tab.title.toLowerCase().includes(lowerQuery) : true
-            const matchContent = shouldMatch ? tab.content.toLowerCase().includes(lowerQuery) : false
-            if (!shouldMatch || matchTitle || matchContent) {
-                searchResults.push({ tab, type, matchTitle, matchContent })
+        const MAX_RESULTS = 200
+        const CONTEXT_CHARS = 30
+
+        const sourceTabs = activeTab === 'active'
+            ? tabs
+            : activeTab === 'archived'
+                ? archivedTabs
+                : closedTabs
+
+        if (!hasQuery) {
+            sourceTabs.forEach((tab) => {
+                searchResults.push({ tab, type: activeTab, kind: 'tab' })
+            })
+            return searchResults
+        }
+
+        for (const tab of sourceTabs) {
+            if (searchResults.length >= MAX_RESULTS) break
+
+            const titleLower = tab.title.toLowerCase()
+            const titleIndex = titleLower.indexOf(lowerQuery)
+            if (titleIndex !== -1) {
+                searchResults.push({
+                    tab,
+                    type: activeTab,
+                    kind: 'title',
+                    titleHighlight: { from: 0, to: tab.title.length },
+                })
+            }
+
+            const content = tab.content || ''
+            const contentLower = content.toLowerCase()
+            let startIndex = 0
+            let scanIndex = 0
+            let scanLine = 1
+            while (searchResults.length < MAX_RESULTS) {
+                const matchIndex = contentLower.indexOf(lowerQuery, startIndex)
+                if (matchIndex === -1) break
+
+                while (scanIndex < matchIndex) {
+                    const nextNewline = contentLower.indexOf('\n', scanIndex)
+                    if (nextNewline === -1 || nextNewline >= matchIndex) break
+                    scanLine += 1
+                    scanIndex = nextNewline + 1
+                }
+
+                const lineStart = scanIndex
+                const nextBreak = contentLower.indexOf('\n', matchIndex)
+                const lineEnd = nextBreak === -1 ? contentLower.length : nextBreak
+
+                const lineText = content.slice(lineStart, lineEnd)
+                const withinLineIndex = matchIndex - lineStart
+
+                const snippetStart = Math.max(0, withinLineIndex - CONTEXT_CHARS)
+                const snippetEnd = Math.min(lineText.length, withinLineIndex + lowerQuery.length + CONTEXT_CHARS)
+                const rawSnippet = lineText.slice(snippetStart, snippetEnd)
+
+                const prefixEllipsis = snippetStart > 0 ? '...' : ''
+                const suffixEllipsis = snippetEnd < lineText.length ? '...' : ''
+                const previewText = prefixEllipsis + rawSnippet + suffixEllipsis
+                const matchStart = prefixEllipsis.length + (withinLineIndex - snippetStart)
+                const matchEnd = matchStart + lowerQuery.length
+
+                searchResults.push({
+                    tab,
+                    type: activeTab,
+                    kind: 'content',
+                    jumpTo: {
+                        from: matchIndex,
+                        to: matchIndex + lowerQuery.length,
+                        line: scanLine,
+                        column: withinLineIndex + 1,
+                    },
+                    preview: { text: previewText, matchStart, matchEnd },
+                })
+
+                startIndex = matchIndex + lowerQuery.length
             }
         }
 
-        if (activeTab === 'active') {
-            tabs.forEach(tab => filterTab(tab, 'active'))
-        } else if (activeTab === 'archived') {
-            archivedTabs.forEach(tab => filterTab(tab, 'archived'))
-        } else if (activeTab === 'closed') {
-            closedTabs.forEach(tab => filterTab(tab, 'closed'))
-        }
-
         return searchResults
-    }, [query, tabs, archivedTabs, closedTabs, activeTab])
+    }, [debouncedQuery, tabs, archivedTabs, closedTabs, activeTab])
 
     // 重置选中索引
     useEffect(() => {
         setSelectedIndex(0)
-    }, [query, activeTab])
+    }, [debouncedQuery, activeTab])
 
     // 滚动到选中项
     useEffect(() => {
@@ -126,13 +207,16 @@ export function TabSearchModal({
 
     // 选择结果
     const handleSelect = (result: SearchResult) => {
+        const jumpTo = result.kind === 'content' ? result.jumpTo : undefined
         if (result.type === 'active') {
-            onSelectTab(result.tab as Tab)
+            onSelectTab(result.tab as Tab, jumpTo)
             onClose()
         } else if (result.type === 'archived') {
-            onRestoreArchived(result.tab as ArchivedTab)
+            onRestoreArchived(result.tab as ArchivedTab, jumpTo)
+            onClose()
         } else if (result.type === 'closed') {
-            onRestoreClosed(result.tab as ClosedTab)
+            onRestoreClosed(result.tab as ClosedTab, jumpTo)
+            onClose()
         }
     }
 
@@ -169,14 +253,6 @@ export function TabSearchModal({
         setConfirmDialog(null)
     }
 
-    // 获取内容预览
-    const getContentPreview = (content: string): string => {
-        const lines = content.split('\n').filter(line => line.trim())
-        if (lines.length === 0) return ''
-        const preview = lines[0].substring(0, 60)
-        return preview.length < lines[0].length ? preview + '...' : preview
-    }
-
     // 格式化时间
     const formatTimeAgo = (timestamp: number): string => {
         const diff = Date.now() - timestamp
@@ -200,10 +276,23 @@ export function TabSearchModal({
 
     // 获取空状态提示
     const getEmptyMessage = () => {
-        if (query.trim()) return t('search.noResults')
+        if (debouncedQuery.trim()) return t('search.noResults')
         if (activeTab === 'archived') return t('archive.empty')
         if (activeTab === 'closed') return t('trash.empty')
         return t('search.noResults')
+    }
+
+    const renderHighlight = (text: string, from: number, to: number) => {
+        const safeFrom = Math.max(0, Math.min(from, text.length))
+        const safeTo = Math.max(safeFrom, Math.min(to, text.length))
+        if (safeFrom === safeTo) return text
+        return (
+            <>
+                {text.slice(0, safeFrom)}
+                <span className="search-highlight">{text.slice(safeFrom, safeTo)}</span>
+                {text.slice(safeTo)}
+            </>
+        )
     }
 
     if (!isOpen) return null
@@ -260,52 +349,64 @@ export function TabSearchModal({
                         {results.length === 0 ? (
                             <div className="search-empty">{getEmptyMessage()}</div>
                         ) : (
-                            results.map((result, index) => (
-                                <div
-                                    key={`${result.type}-${result.tab.id}-${'archivedAt' in result.tab ? result.tab.archivedAt : ('closedAt' in result.tab ? result.tab.closedAt : result.tab.updatedAt)}`}
-                                    className={`search-result-item ${index === selectedIndex ? 'selected' : ''}`}
-                                    onClick={() => handleSelect(result)}
-                                    onMouseEnter={() => setSelectedIndex(index)}
-                                >
-                                    <div className="search-result-main">
-                                        <span className="search-result-title">{result.tab.title}</span>
-                                        {activeTab !== 'active' && (
-                                            <span className="search-result-time">
-                                                {formatTimeAgo('archivedAt' in result.tab ? result.tab.archivedAt : (result.tab as ClosedTab).closedAt)}
-                                            </span>
-                                        )}
-                                        {activeTab !== 'active' && (
-                                            <div className="search-result-actions">
-                                                <button
-                                                    className="search-result-action restore"
-                                                    title={activeTab === 'archived' ? t('archive.restoreTooltip') : t('trash.restoreTooltip')}
-                                                    onClick={(e) => { e.stopPropagation(); handleSelect(result) }}
-                                                >
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <polyline points="1 4 1 10 7 10"></polyline>
-                                                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                                                    </svg>
-                                                </button>
-                                                <button
-                                                    className="search-result-action delete"
-                                                    title={activeTab === 'archived' ? t('archive.deleteTooltip') : t('trash.deleteTooltip')}
-                                                    onClick={(e) => handleDelete(e, result)}
-                                                >
-                                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                                    </svg>
-                                                </button>
+                            results.map((result, index) => {
+                                const resultKey = result.kind === 'content' && result.jumpTo
+                                    ? `${result.type}-${result.tab.id}-c-${result.jumpTo.from}`
+                                    : result.kind === 'title' && result.titleHighlight
+                                        ? `${result.type}-${result.tab.id}-t-${result.titleHighlight.from}`
+                                        : `${result.type}-${result.tab.id}`
+
+                                const titleNode = result.kind === 'title' && result.titleHighlight
+                                    ? renderHighlight(result.tab.title, result.titleHighlight.from, result.titleHighlight.to)
+                                    : result.tab.title
+
+                                return (
+                                    <div
+                                        key={resultKey}
+                                        className={`search-result-item ${index === selectedIndex ? 'selected' : ''}`}
+                                        onClick={() => handleSelect(result)}
+                                        onMouseEnter={() => setSelectedIndex(index)}
+                                    >
+                                        <div className="search-result-main">
+                                            <span className="search-result-title">{titleNode}</span>
+                                            {activeTab !== 'active' && (
+                                                <span className="search-result-time">
+                                                    {formatTimeAgo('archivedAt' in result.tab ? result.tab.archivedAt : (result.tab as ClosedTab).closedAt)}
+                                                </span>
+                                            )}
+                                            {activeTab !== 'active' && (
+                                                <div className="search-result-actions">
+                                                    <button
+                                                        className="search-result-action restore"
+                                                        title={activeTab === 'archived' ? t('archive.restoreTooltip') : t('trash.restoreTooltip')}
+                                                        onClick={(e) => { e.stopPropagation(); handleSelect(result) }}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <polyline points="1 4 1 10 7 10"></polyline>
+                                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        className="search-result-action delete"
+                                                        title={activeTab === 'archived' ? t('archive.deleteTooltip') : t('trash.deleteTooltip')}
+                                                        onClick={(e) => handleDelete(e, result)}
+                                                    >
+                                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {result.kind === 'content' && result.preview && (
+                                            <div className="search-result-preview">
+                                                {renderHighlight(result.preview.text, result.preview.matchStart, result.preview.matchEnd)}
                                             </div>
                                         )}
                                     </div>
-                                    {result.matchContent && result.tab.content && (
-                                        <div className="search-result-preview">
-                                            {getContentPreview(result.tab.content)}
-                                        </div>
-                                    )}
-                                </div>
-                            ))
+                                )
+                            })
                         )}
                     </div>
 

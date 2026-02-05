@@ -14,7 +14,12 @@ if (!fs.existsSync(ATTACHMENTS_DIR)) {
     fs.mkdirSync(ATTACHMENTS_DIR, { recursive: true })
 }
 
-const attachments = new Hono()
+type AuthedVariables = {
+    userId: string
+    email: string
+}
+
+const attachments = new Hono<{ Variables: AuthedVariables }>()
 
 // 认证中间件
 attachments.use('*', async (c, next) => {
@@ -49,7 +54,7 @@ interface AttachmentMeta {
 // 批量推送附件元数据
 attachments.post('/meta', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const { attachments: metas } = await c.req.json<{ attachments: AttachmentMeta[] }>()
 
         if (!Array.isArray(metas)) {
@@ -92,7 +97,7 @@ attachments.post('/meta', async (c) => {
 // 查询服务器缺失的附件
 attachments.post('/needed', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const { hashes } = await c.req.json<{ hashes: string[] }>()
 
         if (!Array.isArray(hashes)) {
@@ -131,7 +136,7 @@ attachments.post('/needed', async (c) => {
 // 上传附件文件
 attachments.put('/upload/:hash', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const hash = c.req.param('hash')
         const ext = c.req.query('ext') || '.png'
 
@@ -193,7 +198,7 @@ attachments.put('/upload/:hash', async (c) => {
 // 下载附件文件
 attachments.get('/download/:hash', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const hash = c.req.param('hash')
 
         // 获取元数据
@@ -231,7 +236,7 @@ attachments.get('/download/:hash', async (c) => {
 // 批量查询附件元数据
 attachments.post('/batch', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const { hashes } = await c.req.json<{ hashes: string[] }>()
 
         if (!Array.isArray(hashes)) {
@@ -260,7 +265,7 @@ attachments.post('/batch', async (c) => {
 // 获取用户所有附件列表
 attachments.get('/list', async (c) => {
     try {
-        const userId = c.get('userId') as string
+        const userId = c.get('userId')
         const metas = db.getUserAttachments(userId)
 
         return c.json({

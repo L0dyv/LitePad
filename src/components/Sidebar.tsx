@@ -17,6 +17,7 @@ interface SidebarProps {
     onTabClose: (id: string) => void
     onTabAdd: () => void
     onTabRename: (id: string, newTitle: string) => void
+    onTabPinToggle: (id: string) => void
     onTabReorder?: (fromIndex: number, toIndex: number) => void
     onTabArchive: (id: string) => void
     onOpenModal: (tab: ModalTab) => void
@@ -63,6 +64,7 @@ export function Sidebar({
     onTabClose,
     onTabAdd,
     onTabRename,
+    onTabPinToggle,
     onTabReorder,
     onTabArchive,
     onOpenModal,
@@ -201,12 +203,21 @@ export function Sidebar({
         e.dataTransfer.setData('text/plain', index.toString())
     }
 
+    const isValidDropTarget = (fromIndex: number, toIndex: number) => {
+        const pinnedCount = tabs.filter(t => !!t.pinned).length
+        const fromPinned = !!tabs[fromIndex]?.pinned
+        return fromPinned ? toIndex < pinnedCount : toIndex >= pinnedCount
+    }
+
     const handleDragOver = (e: React.DragEvent, index: number) => {
+        if (draggedIndex === null || draggedIndex === index) return
+        if (!isValidDropTarget(draggedIndex, index)) {
+            setDragOverIndex(null)
+            return
+        }
         e.preventDefault()
         e.dataTransfer.dropEffect = 'move'
-        if (draggedIndex !== null && draggedIndex !== index) {
-            setDragOverIndex(index)
-        }
+        setDragOverIndex(index)
     }
 
     const handleDragLeave = () => {
@@ -216,7 +227,9 @@ export function Sidebar({
     const handleDrop = (e: React.DragEvent, toIndex: number) => {
         e.preventDefault()
         if (draggedIndex !== null && draggedIndex !== toIndex && onTabReorder) {
-            onTabReorder(draggedIndex, toIndex)
+            if (isValidDropTarget(draggedIndex, toIndex)) {
+                onTabReorder(draggedIndex, toIndex)
+            }
         }
         setDraggedIndex(null)
         setDragOverIndex(null)
@@ -242,6 +255,10 @@ export function Sidebar({
                     setEditValue(tab.title)
                 }
             },
+            ...(tabs.length > 1 ? [{
+                label: tab.pinned ? t('tabBar.unpin') : t('tabBar.pin'),
+                onClick: () => onTabPinToggle(tab.id)
+            }] : []),
             {
                 label: t('tabBar.archive'),
                 onClick: () => {
@@ -250,7 +267,7 @@ export function Sidebar({
             }
         ]
 
-        if (tabs.length > 1) {
+        if (tabs.length > 1 && !tab.pinned) {
             items.push({
                 label: t('tabBar.close'),
                 onClick: () => onTabClose(tab.id)
@@ -261,7 +278,7 @@ export function Sidebar({
                 items.push({
                     label: t('tabBar.closeRight'),
                     onClick: () => {
-                        tabs.slice(tabIndex + 1).forEach(t => onTabClose(t.id))
+                        tabs.slice(tabIndex + 1).filter(t => !t.pinned).forEach(t => onTabClose(t.id))
                     }
                 })
             }
@@ -270,7 +287,7 @@ export function Sidebar({
             items.push({
                 label: t('tabBar.closeOthers'),
                 onClick: () => {
-                    tabs.filter(t => t.id !== tab.id).forEach(t => onTabClose(t.id))
+                    tabs.filter(t => t.id !== tab.id && !t.pinned).forEach(t => onTabClose(t.id))
                 }
             })
         }
@@ -289,7 +306,7 @@ export function Sidebar({
                     {tabs.map((tab, index) => (
                         <div
                             key={tab.id}
-                            className={`sidebar-tab ${tab.id === activeTabId ? 'active' : ''}${draggedIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
+                            className={`sidebar-tab ${tab.pinned ? 'pinned' : ''} ${tab.id === activeTabId ? 'active' : ''}${draggedIndex === index ? ' dragging' : ''}${dragOverIndex === index ? ' drag-over' : ''}`}
                             draggable={editingId !== tab.id}
                             onClick={() => editingId !== tab.id && onTabClick(tab.id)}
                             onDoubleClick={() => handleDoubleClick(tab)}
@@ -300,20 +317,30 @@ export function Sidebar({
                             onDrop={(e) => handleDrop(e, index)}
                             onDragEnd={handleDragEnd}
                         >
-                            {editingId === tab.id ? (
-                                <input
-                                    ref={inputRef}
-                                    className="sidebar-rename-input"
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value)}
-                                    onKeyDown={(e) => handleKeyDown(e, tab.id)}
-                                    onBlur={() => handleRenameConfirm(tab.id)}
-                                    onClick={(e) => e.stopPropagation()}
-                                />
-                            ) : (
-                                <span className="sidebar-tab-title">{tab.title}</span>
-                            )}
-                            {tabs.length > 1 && editingId !== tab.id && (
+                            <div className="sidebar-tab-label">
+                                {tab.pinned && (
+                                    <span className="sidebar-tab-pin" aria-label={t('tabBar.pin')}>
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M12 17v5"></path>
+                                            <path d="M9 3h6l1 7-2 2v5H10v-5L8 10l1-7z"></path>
+                                        </svg>
+                                    </span>
+                                )}
+                                {editingId === tab.id ? (
+                                    <input
+                                        ref={inputRef}
+                                        className="sidebar-rename-input"
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value)}
+                                        onKeyDown={(e) => handleKeyDown(e, tab.id)}
+                                        onBlur={() => handleRenameConfirm(tab.id)}
+                                        onClick={(e) => e.stopPropagation()}
+                                    />
+                                ) : (
+                                    <span className="sidebar-tab-title">{tab.title}</span>
+                                )}
+                            </div>
+                            {tabs.length > 1 && editingId !== tab.id && !tab.pinned && (
                                 <button
                                     className="sidebar-tab-close"
                                     onClick={(e) => handleClose(e, tab.id)}

@@ -223,6 +223,13 @@
     white-space: nowrap;
 }
 
+.search-highlight {
+    background: rgba(59, 130, 246, 0.25);
+    border-radius: 3px;
+    padding: 0 2px;
+    color: var(--text-primary);
+}
+
 /* 底部栏 */
 .search-footer {
     display: flex;

@@ -11,6 +11,9 @@ export interface Tab {
     localVersion: number      // 本地版本号，每次修改 +1
     syncedAt: number | null   // 上次同步时间，null=从未同步
     deleted: boolean          // 软删除标记
+    // UX 字段
+    pinned?: boolean          // 是否固定（置顶）
+    order?: number            // 自定义顺序（用于持久化排序）
 }
 
 // 已关闭的标签页（回收站）
@@ -194,7 +197,9 @@ export async function createTab(title: string = 'New Page'): Promise<Tab> {
         updatedAt: now,
         localVersion: 1,
         syncedAt: null,
-        deleted: false
+        deleted: false,
+        pinned: false,
+        order: 0
     }
     await db.tabs.put(tab)
     return tab
@@ -267,6 +272,8 @@ export async function addToClosedTabs(tab: Tab, index: number): Promise<void> {
         index
     }
     await db.closedTabs.put(closedTab)
+    // 从主 tabs 表中移除，避免重启后重新出现在打开列表中
+    await db.tabs.delete(tab.id)
 
     // 限制数量
     const all = await db.closedTabs.orderBy('closedAt').toArray()
@@ -311,6 +318,8 @@ export async function addToArchivedTabs(tab: Tab): Promise<void> {
         archivedAt: Date.now()
     }
     await db.archivedTabs.put(archivedTab)
+    // 从主 tabs 表中移除，避免重启后重新出现在打开列表中
+    await db.tabs.delete(tab.id)
 }
 
 export async function removeFromArchivedTabs(id: string): Promise<ArchivedTab[]> {
@@ -430,7 +439,7 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
         if (mainData) {
             const parsed = JSON.parse(mainData)
             if (parsed.tabs && Array.isArray(parsed.tabs)) {
-                const tabs: Tab[] = parsed.tabs.map((t: any) => ({
+                const tabs: Tab[] = parsed.tabs.map((t: any, index: number) => ({
                     id: t.id,
                     title: t.title,
                     content: t.content,
@@ -438,7 +447,9 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
                     updatedAt: t.updatedAt || Date.now(),
                     localVersion: 1,
                     syncedAt: null,
-                    deleted: false
+                    deleted: false,
+                    pinned: t.pinned ?? false,
+                    order: typeof t.order === 'number' ? t.order : index
                 }))
                 await db.tabs.bulkPut(tabs)
 
@@ -462,6 +473,8 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
                     localVersion: 1,
                     syncedAt: null,
                     deleted: false,
+                    pinned: t.pinned ?? false,
+                    order: typeof t.order === 'number' ? t.order : undefined,
                     closedAt: t.closedAt || Date.now(),
                     index: t.index || 0
                 }))
@@ -483,6 +496,8 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
                     localVersion: 1,
                     syncedAt: null,
                     deleted: false,
+                    pinned: t.pinned ?? false,
+                    order: typeof t.order === 'number' ? t.order : undefined,
                     archivedAt: t.archivedAt || Date.now()
                 }))
                 await db.archivedTabs.bulkPut(archivedTabs)
@@ -516,9 +531,50 @@ export async function migrateFromLocalStorage(): Promise<boolean> {
     }
 }
 
+function getOpenTabIdSetFromLocalStorage(): Set<string> {
+    try {
+        const mainData = localStorage.getItem('flashpad-data')
+        if (!mainData) return new Set()
+        const parsed = JSON.parse(mainData)
+        if (!parsed?.tabs || !Array.isArray(parsed.tabs)) return new Set()
+        return new Set(parsed.tabs.map((t: any) => t?.id).filter(Boolean))
+    } catch {
+        return new Set()
+    }
+}
+
+async function cleanupArchivedAndClosedFromMainTabs(): Promise<void> {
+    try {
+        const openIds = getOpenTabIdSetFromLocalStorage()
+
+        await db.transaction('rw', db.tabs, db.closedTabs, db.archivedTabs, async () => {
+            const closed = await db.closedTabs.toArray()
+            for (const t of closed) {
+                if (openIds.has(t.id)) {
+                    await db.closedTabs.delete(t.id)
+                } else {
+                    await db.tabs.delete(t.id)
+                }
+            }
+
+            const archived = await db.archivedTabs.toArray()
+            for (const t of archived) {
+                if (openIds.has(t.id)) {
+                    await db.archivedTabs.delete(t.id)
+                } else {
+                    await db.tabs.delete(t.id)
+                }
+            }
+        })
+    } catch (error) {
+        console.error('清理归档/回收站状态失败:', error)
+    }
+}
+
 // 初始化数据库（包括迁移）
 export async function initDatabase(): Promise<void> {
     await migrateFromLocalStorage()
+    await cleanupArchivedAndClosedFromMainTabs()
     await initSyncConfig()
 }
 
