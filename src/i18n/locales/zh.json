@@ -98,7 +98,8 @@
         "indent": "增加缩进",
         "outdent": "减少缩进",
         "continueList": "列表自动续行",
-        "openSettings": "打开设置"
+        "openSettings": "打开设置",
+        "toggleFullscreen": "切换全屏"
     },
     "statusBar": {
         "showShortcuts": "显示快捷键提示",
@@ -223,4 +224,4 @@
         "resolve": "解决冲突",
         "empty": "(空内容)"
     }
-}\n
+}

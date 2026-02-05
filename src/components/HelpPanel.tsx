@@ -105,6 +105,10 @@ export function HelpPanel({ isOpen, onClose, shortcuts }: HelpPanelProps) {
                 <div className="help-section">
                     <h3 className="help-section-title">{t('help.sectionSystem')}</h3>
                     <div className="help-item">
+                        <span>{t('help.toggleFullscreen')}</span>
+                        <kbd>F11</kbd>
+                    </div>
+                    <div className="help-item">
                         <span>{t('settings.showHideWindow')}</span>
                         <kbd>Alt + X</kbd>
                     </div>

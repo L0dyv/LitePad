@@ -54,6 +54,31 @@ function App() {
         setEditorJump(prev => (prev && prev.token === token ? null : prev))
     }, [])
 
+    const toggleFullscreen = useCallback(async () => {
+        const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
+        if (isTauri) {
+            try {
+                const { getCurrentWindow } = await import('@tauri-apps/api/window')
+                const win = getCurrentWindow()
+                const current = await win.isFullscreen()
+                await win.setFullscreen(!current)
+                return
+            } catch (err) {
+                console.warn('Toggle fullscreen via Tauri failed:', err)
+            }
+        }
+
+        try {
+            if (document.fullscreenElement) {
+                await document.exitFullscreen()
+            } else {
+                await document.documentElement.requestFullscreen()
+            }
+        } catch (err) {
+            console.warn('Toggle fullscreen via browser API failed:', err)
+        }
+    }, [])
+
     // 初始化数据库（从 localStorage 迁移到 IndexedDB）
     useEffect(() => {
         initStorage().then(async () => {
@@ -490,6 +515,13 @@ function App() {
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             // 自定义快捷键：新建标签页
+            if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === 'F11') {
+                e.preventDefault()
+                if (e.repeat) return
+                void toggleFullscreen()
+                return
+            }
+
             if (matchShortcut(e, shortcuts.newTab)) {
                 e.preventDefault()
                 handleTabAdd()
@@ -594,7 +626,7 @@ function App() {
         }
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleReopenTab, handleNextTab, handlePrevTab, handleSwitchToTab, handleArchiveTab])
+    }, [data.tabs.length, data.activeTabId, shortcuts, handleTabAdd, handleTabClose, handleReopenTab, handleNextTab, handlePrevTab, handleSwitchToTab, handleArchiveTab, toggleFullscreen])
 
     // 重命名标签页
     const handleTabRename = (id: string, newTitle: string) => {

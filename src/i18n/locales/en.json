@@ -98,7 +98,8 @@
         "indent": "Indent",
         "outdent": "Outdent",
         "continueList": "Continue list",
-        "openSettings": "Open settings"
+        "openSettings": "Open settings",
+        "toggleFullscreen": "Toggle fullscreen"
     },
     "statusBar": {
         "showShortcuts": "Show shortcut hints",
