@@ -552,6 +552,8 @@ export function Editor({
   const viewRef = useRef<EditorView | null>(null);
   const isExternalUpdate = useRef(false);
   const isAutoRenumbering = useRef(false);
+  const isImeComposingRef = useRef(false);
+  const lastCompositionEndAtRef = useRef(0);
   const flashTimeoutRef = useRef<number | null>(null);
   const flashTokenRef = useRef(0);
   const [editorContextMenu, setEditorContextMenu] = useState({
@@ -963,9 +965,22 @@ export function Editor({
       return true;
     };
 
+    const normalizeQuickSymbolMarker = (marker: string): string => {
+      if (/^＃+$/.test(marker)) {
+        return "#".repeat(marker.length);
+      }
+      if (marker === "－" || marker === "—" || marker === "–" || marker === "*")
+        return "-";
+      if (marker === "＞") return ">";
+      if (marker === "1。") return "1.";
+      return marker;
+    };
+
     const handleQuickSymbolSpace = (view: EditorView) => {
       if (!enableQuickSymbolInput) return false;
       if (view.composing) return false;
+      if (isImeComposingRef.current) return false;
+      if (Date.now() - lastCompositionEndAtRef.current < 120) return false;
 
       const { state } = view;
       const range = state.selection.main;
@@ -975,11 +990,13 @@ export function Editor({
       const line = state.doc.lineAt(pos);
       const prefix = state.doc.sliceString(line.from, pos);
 
-      const match = prefix.match(/^([\t ]*)(#{1,3}|-|>|1\.)$/);
+      const match = prefix.match(
+        /^([\t ]*)(#{1,3}|＃{1,3}|>|＞|1\.|1。)$/,
+      );
       if (!match) return false;
 
       const indent = match[1];
-      const marker = match[2];
+      const marker = normalizeQuickSymbolMarker(match[2]);
 
       const indentCols = getIndentColumns(indent);
       if ((marker.startsWith("#") || marker === ">") && indentCols > 3)
@@ -988,9 +1005,12 @@ export function Editor({
       const insideFence = buildInsideCodeBlockMap(state.doc);
       if (insideFence[line.number]) return false;
 
+      const replaceFrom = line.from + indent.length;
+      const insert = `${marker} `;
+
       view.dispatch({
-        changes: { from: pos, insert: " " },
-        selection: { anchor: pos + 1 },
+        changes: { from: replaceFrom, to: pos, insert },
+        selection: { anchor: replaceFrom + insert.length },
         userEvent: "input",
       });
 
@@ -1001,6 +1021,18 @@ export function Editor({
       { key: "Enter", run: handleCodeFenceEnter },
       { key: "Space", run: handleQuickSymbolSpace },
     ]);
+
+    const imeCompositionGuard = EditorView.domEventHandlers({
+      compositionstart: () => {
+        isImeComposingRef.current = true;
+        return false;
+      },
+      compositionend: () => {
+        isImeComposingRef.current = false;
+        lastCompositionEndAtRef.current = Date.now();
+        return false;
+      },
+    });
 
     const markdownExtension = markdown({
       base: markdownLanguage,
@@ -1279,6 +1311,7 @@ export function Editor({
         tabIndentKeymap,
         ...(enableQuickSymbolInput ? [quickSymbolKeymap] : []),
         continueMarkupKeymap,
+        imeCompositionGuard,
         EditorState.tabSize.of(tabSize),
         indentUnit.of(indentText),
         markdownExtension,

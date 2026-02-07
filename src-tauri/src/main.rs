@@ -168,6 +168,10 @@ fn get_default_backup_directory() -> Option<String> {
     })
 }
 
+fn resolve_backup_directory(configured: Option<String>) -> Option<String> {
+    configured.or_else(get_default_backup_directory)
+}
+
 const MIN_WINDOW_WIDTH: u32 = 400;
 const MIN_WINDOW_HEIGHT: u32 = 300;
 
@@ -570,7 +574,12 @@ async fn select_backup_directory(app: AppHandle) -> Result<Option<String>, Strin
 async fn get_backup_settings(app: AppHandle) -> Result<BackupSettings, String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     if let Some(value) = store.get("backupSettings") {
-        serde_json::from_value(value).map_err(|e| e.to_string())
+        let mut settings: BackupSettings =
+            serde_json::from_value(value).map_err(|e| e.to_string())?;
+        if settings.backup_directory.is_none() {
+            settings.backup_directory = get_default_backup_directory();
+        }
+        Ok(settings)
     } else {
         Ok(BackupSettings::default())
     }
@@ -620,8 +629,7 @@ async fn perform_backup(
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
-    let backup_dir = settings
-        .backup_directory
+    let backup_dir = resolve_backup_directory(settings.backup_directory)
         .ok_or("Backup directory not configured")?;
     let backup_path = std::path::Path::new(&backup_dir);
 
@@ -690,7 +698,7 @@ async fn get_backup_list(app: AppHandle) -> Result<Vec<BackupInfo>, String> {
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
-    let backup_dir = match settings.backup_directory {
+    let backup_dir = match resolve_backup_directory(settings.backup_directory) {
         Some(dir) => dir,
         None => return Ok(vec![]),
     };
@@ -739,8 +747,7 @@ async fn restore_backup(
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
-    let backup_dir = settings
-        .backup_directory
+    let backup_dir = resolve_backup_directory(settings.backup_directory)
         .ok_or("Backup directory not configured")?;
     let zip_path = std::path::Path::new(&backup_dir).join(&filename);
 
@@ -792,8 +799,7 @@ async fn delete_backup(app: AppHandle, filename: String) -> Result<(), String> {
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
-    let backup_dir = settings
-        .backup_directory
+    let backup_dir = resolve_backup_directory(settings.backup_directory)
         .ok_or("Backup directory not configured")?;
     let file_path = std::path::Path::new(&backup_dir).join(&filename);
 

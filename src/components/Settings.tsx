@@ -10,6 +10,7 @@ import { isLoggedIn, getUserInfo, logout as authLogout } from '../sync/auth'
 import { getConfig, enableSync, disableSync, DEFAULT_SERVER_URL, setConfig } from '../sync/config'
 import type { SyncConfig } from '../db'
 import { startSync, stopSync, getSyncStatus, manualSync } from '../sync'
+import { collectBackupDataFromLocalStorage } from '../utils/backup'
 import './Settings.css'
 
 const LINE_HEIGHT_PRESETS = [1.4, 1.6, 1.8]
@@ -43,6 +44,7 @@ interface SettingsProps {
     onZenModeChange?: (enabled: boolean) => void
     zenHideStatsCapsule?: boolean
     onZenHideStatsCapsuleChange?: (hidden: boolean) => void
+    onBackupSettingsChange?: (settings: BackupSettings) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -69,7 +71,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onEditorTabIndentTextChange, onEditorLineHeightChange, onEditorCodeBlockHighlightChange, onEditorQuickSymbolInputChange, onLanguageChange, zenModeEnabled, onZenModeChange, zenHideStatsCapsule, onZenHideStatsCapsuleChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onEditorTabIndentTextChange, onEditorLineHeightChange, onEditorCodeBlockHighlightChange, onEditorQuickSymbolInputChange, onLanguageChange, zenModeEnabled, onZenModeChange, zenHideStatsCapsule, onZenHideStatsCapsuleChange, onBackupSettingsChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -84,6 +86,10 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
     const [currentEditorFontSize, setCurrentEditorFontSize] = useState(() => loadEditorFontSize())
     const [currentEditorTabIndentText, setCurrentEditorTabIndentText] = useState(() => loadEditorTabIndentText())
     const [currentEditorLineHeight, setCurrentEditorLineHeight] = useState(() => loadEditorLineHeight())
+    const [lineHeightSelection, setLineHeightSelection] = useState<string>(() => {
+        const initial = loadEditorLineHeight()
+        return isPresetLineHeight(initial) ? String(initial) : 'custom'
+    })
     const [currentEditorCodeBlockHighlight, setCurrentEditorCodeBlockHighlight] = useState(() => loadEditorCodeBlockHighlight())
     const [currentEditorQuickSymbolInput, setCurrentEditorQuickSymbolInput] = useState(() => loadEditorQuickSymbolInput())
 
@@ -128,7 +134,9 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
         setCurrentEditorFont(loadEditorFont())
         setCurrentEditorFontSize(loadEditorFontSize())
         setCurrentEditorTabIndentText(loadEditorTabIndentText())
-        setCurrentEditorLineHeight(loadEditorLineHeight())
+        const loadedLineHeight = loadEditorLineHeight()
+        setCurrentEditorLineHeight(loadedLineHeight)
+        setLineHeightSelection(isPresetLineHeight(loadedLineHeight) ? String(loadedLineHeight) : 'custom')
         setCurrentEditorCodeBlockHighlight(loadEditorCodeBlockHighlight())
         setCurrentEditorQuickSymbolInput(loadEditorQuickSymbolInput())
         // 获取系统字体列表
@@ -140,6 +148,7 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
         // 加载备份设置
         tauriAPI?.getBackupSettings().then((settings) => {
             setBackupSettings(settings)
+            onBackupSettingsChange?.(settings)
             // 验证路径
             if (settings.backupDirectory) {
                 tauriAPI?.validateBackupPath(settings.backupDirectory).then(setPathValidation)
@@ -157,7 +166,7 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
             setCustomServerUrl(config.serverUrl || DEFAULT_SERVER_URL)
         })
         setSyncStatus(getSyncStatus())
-    }, [isOpen])
+    }, [isOpen, onBackupSettingsChange])
 
     // 录制快捷键
     useEffect(() => {
@@ -351,6 +360,7 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                 const newSettings = { ...backupSettings, backupDirectory: dir }
                 setBackupSettings(newSettings)
                 await tauriAPI?.setBackupSettings(newSettings)
+                onBackupSettingsChange?.(newSettings)
                 // 验证新路径
                 const validation = await tauriAPI?.validateBackupPath(dir)
                 if (validation) setPathValidation(validation)
@@ -365,39 +375,18 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
         const newSettings = { ...backupSettings, [key]: value }
         setBackupSettings(newSettings)
         await tauriAPI?.setBackupSettings(newSettings)
-    }
-
-    const collectBackupData = () => {
-        const keys = [
-            'flashpad-data',
-            'flashpad-archived-tabs',
-            'flashpad-closed-tabs',
-            'flashpad-shortcuts',
-            'flashpad-font',
-            'flashpad-editor-font',
-            'flashpad-editor-font-size',
-            'flashpad-editor-tab-indent',
-            'flashpad-editor-line-height',
-            'flashpad-editor-code-block-highlight',
-            'flashpad-editor-quick-symbol-input',
-            'flashpad-zen-mode',
-            'flashpad-statusbar'
-        ]
-        const data: Record<string, string | null> = {}
-        for (const key of keys) {
-            data[key] = localStorage.getItem(key)
-        }
-        return data
+        onBackupSettingsChange?.(newSettings)
     }
 
     const handleManualBackup = async () => {
-        if (!backupSettings.backupDirectory) {
+        const effectiveBackupDir = backupSettings.backupDirectory || defaultBackupDir
+        if (!effectiveBackupDir) {
             setBackupMessage(t('settings.notSet'))
             setTimeout(() => setBackupMessage(null), 3000)
             return
         }
         try {
-            const data = collectBackupData()
+            const data = collectBackupDataFromLocalStorage()
             await tauriAPI?.performBackup(JSON.stringify(data))
             setBackupMessage(t('settings.backupSuccess'))
             // Refresh backup list
@@ -596,10 +585,12 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                             <span>{t('settings.lineHeight')}</span>
                             <div className="line-height-controls">
                                 <select
-                                    value={isPresetLineHeight(currentEditorLineHeight) ? String(currentEditorLineHeight) : 'custom'}
+                                    value={lineHeightSelection}
                                     onChange={(e) => {
-                                        if (e.target.value === 'custom') return
-                                        handleEditorLineHeightChange(parseFloat(e.target.value))
+                                        const selected = e.target.value
+                                        setLineHeightSelection(selected)
+                                        if (selected === 'custom') return
+                                        handleEditorLineHeightChange(parseFloat(selected))
                                     }}
                                     className="settings-select"
                                 >
@@ -608,23 +599,29 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                                     <option value="1.8">{t('settings.lineHeightRelaxed')}</option>
                                     <option value="custom">{t('settings.customValue')}</option>
                                 </select>
-                                <input
-                                    type="number"
-                                    min={LINE_HEIGHT_MIN}
-                                    max={LINE_HEIGHT_MAX}
-                                    step="0.05"
-                                    className="settings-input line-height-input"
-                                    value={currentEditorLineHeight}
-                                    onChange={(e) => {
-                                        const parsed = Number(e.target.value)
-                                        if (Number.isNaN(parsed)) return
-                                        handleEditorLineHeightChange(parsed)
-                                    }}
-                                    onBlur={(e) => {
-                                        const parsed = Number(e.target.value)
-                                        handleEditorLineHeightChange(Number.isNaN(parsed) ? currentEditorLineHeight : parsed)
-                                    }}
-                                />
+                                {lineHeightSelection === 'custom' && (
+                                    <input
+                                        type="number"
+                                        min={LINE_HEIGHT_MIN}
+                                        max={LINE_HEIGHT_MAX}
+                                        step="0.05"
+                                        className="settings-input line-height-input"
+                                        value={currentEditorLineHeight}
+                                        onChange={(e) => {
+                                            const parsed = Number(e.target.value)
+                                            if (Number.isNaN(parsed)) return
+                                            handleEditorLineHeightChange(parsed)
+                                        }}
+                                        onBlur={(e) => {
+                                            const parsed = Number(e.target.value)
+                                            const nextValue = clampLineHeight(Number.isNaN(parsed) ? currentEditorLineHeight : parsed)
+                                            handleEditorLineHeightChange(nextValue)
+                                            if (isPresetLineHeight(nextValue)) {
+                                                setLineHeightSelection(String(nextValue))
+                                            }
+                                        }}
+                                    />
+                                )}
                             </div>
                         </label>
                         <label className="settings-item">

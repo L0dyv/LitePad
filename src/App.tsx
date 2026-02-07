@@ -42,6 +42,8 @@ import {
 } from "./utils/storage";
 import { initSync, addSyncListener } from "./sync";
 import { migrateOldImageUrls, updateVersionRecord } from "./utils/migration";
+import { tauriAPI, BackupSettings } from "./lib/tauri-api";
+import { collectBackupDataFromLocalStorage } from "./utils/backup";
 import { ConflictResolver, Conflict } from "./components/ConflictResolver";
 import "./styles/App.css";
 
@@ -90,17 +92,18 @@ function App() {
   const [renameRequestToken, setRenameRequestToken] = useState(0);
   const sidebarWasHiddenRef = useRef(false);
   const [isImmersive, setIsImmersive] = useState(false);
-  const [sidebarTopDetached, setSidebarTopDetached] = useState(false);
-  const [sidebarSlideHidden, setSidebarSlideHidden] = useState(false);
-  const sidebarTopDetachTimerRef = useRef<number | null>(null);
-  const sidebarSlideTimerRef = useRef<number | null>(null);
   const [_dbInitialized, setDbInitialized] = useState(false);
   const [syncConflicts, setSyncConflicts] = useState<Conflict[]>([]);
   const [syncConflictsServerTime, setSyncConflictsServerTime] = useState<
     number | null
   >(null);
+  const [backupSettings, setBackupSettings] = useState<BackupSettings | null>(
+    null,
+  );
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const saveImmediatelyRef = useRef(false);
+  const autoBackupTimerRef = useRef<number | null>(null);
+  const autoBackupRunningRef = useRef(false);
   const lastPointerRef = useRef<{ x: number; y: number; t: number } | null>(
     null,
   );
@@ -210,230 +213,48 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  const collectLayoutMetrics = () => {
-    const getRect = (el: Element | null) => {
-      if (!el) return null;
-      const r = (el as HTMLElement).getBoundingClientRect();
-      return {
-        x: Math.round(r.x),
-        y: Math.round(r.y),
-        w: Math.round(r.width),
-        h: Math.round(r.height),
-      };
-    };
-
-    const vv = window.visualViewport;
-
-    const appRect = getRect(appRootRef.current);
-    const data = {
-      dpr: window.devicePixelRatio,
-      inner: { w: window.innerWidth, h: window.innerHeight },
-      outer: { w: window.outerWidth, h: window.outerHeight },
-      docEl: {
-        w: document.documentElement.clientWidth,
-        h: document.documentElement.clientHeight,
-      },
-      body: { w: document.body.clientWidth, h: document.body.clientHeight },
-      visualViewport: vv
-        ? {
-            w: Math.round(vv.width),
-            h: Math.round(vv.height),
-            offsetTop: Math.round(vv.offsetTop),
-            offsetLeft: Math.round(vv.offsetLeft),
-            scale: vv.scale,
-          }
-        : null,
-      rects: {
-        app: appRect,
-        root: getRect(document.getElementById("root")),
-        title: getRect(document.querySelector(".title-bar")),
-        footer: getRect(document.querySelector(".app-footer")),
-        appBody: getRect(document.querySelector(".app-body")),
-        main: getRect(document.querySelector(".app-main")),
-        editorContainer: getRect(document.querySelector(".editor-container")),
-        cmEditor: getRect(document.querySelector(".cm-editor")),
-      },
-      gaps: appRect
-        ? { viewportMinusApp: Math.round(window.innerHeight - appRect.h) }
-        : null,
-    };
-
-    return data;
-  };
-
   useEffect(() => {
-    const runId = "run1";
-    const state = {
-      isImmersive,
-      zenEnabled: zenModeSettings.enabled,
-      sidebarVisible: zenModeSettings.sidebarVisible,
-    };
-    const metrics = collectLayoutMetrics();
-
-    // #region agent log
-    fetch("http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId,
-        hypothesisId: "A",
-        location: "src/App.tsx:mount",
-        message: "mount layout metrics",
-        data: { state, metrics },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-
-    let raf1 = 0;
-    let raf2 = 0;
-    raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(() => {
-        const metrics2 = collectLayoutMetrics();
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "debug-session",
-              runId,
-              hypothesisId: "C",
-              location: "src/App.tsx:raf2",
-              message: "raf2 layout metrics",
-              data: { state, metrics: metrics2 },
-              timestamp: Date.now(),
-            }),
-          },
-        ).catch(() => {});
-        // #endregion
-      });
-    });
-
-    void (async () => {
-      const isTauri =
-        typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
-      if (!isTauri) return;
-      try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window");
-        const win = getCurrentWindow();
-        const [innerSize, outerSize, scaleFactor] = await Promise.all([
-          win.innerSize(),
-          win.outerSize(),
-          win.scaleFactor(),
-        ]);
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "debug-session",
-              runId,
-              hypothesisId: "D",
-              location: "src/App.tsx:tauriWindow",
-              message: "tauri window sizes",
-              data: { state, tauri: { innerSize, outerSize, scaleFactor } },
-              timestamp: Date.now(),
-            }),
-          },
-        ).catch(() => {});
-        // #endregion
-      } catch (err) {
-        // #region agent log
-        fetch(
-          "http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              sessionId: "debug-session",
-              runId,
-              hypothesisId: "D",
-              location: "src/App.tsx:tauriWindowError",
-              message: "tauri window sizes error",
-              data: {
-                state,
-                error: {
-                  name: (err as any)?.name,
-                  message: (err as any)?.message,
-                },
-              },
-              timestamp: Date.now(),
-            }),
-          },
-        ).catch(() => {});
-        // #endregion
-      }
-    })();
-
-    return () => {
-      if (raf1) cancelAnimationFrame(raf1);
-      if (raf2) cancelAnimationFrame(raf2);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!tauriAPI) return;
+    tauriAPI.getBackupSettings().then(setBackupSettings).catch(console.error);
   }, []);
 
   useEffect(() => {
-    const runId = "run1";
-    const onResize = () => {
-      const state = {
-        isImmersive,
-        zenEnabled: zenModeSettings.enabled,
-        sidebarVisible: zenModeSettings.sidebarVisible,
-      };
-      const metrics = collectLayoutMetrics();
-      // #region agent log
-      fetch(
-        "http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sessionId: "debug-session",
-            runId,
-            hypothesisId: "A",
-            location: "src/App.tsx:resize",
-            message: "window resize",
-            data: { state, metrics },
-            timestamp: Date.now(),
-          }),
-        },
-      ).catch(() => {});
-      // #endregion
+    if (autoBackupTimerRef.current !== null) {
+      window.clearInterval(autoBackupTimerRef.current);
+      autoBackupTimerRef.current = null;
+    }
+
+    if (!tauriAPI || !backupSettings?.autoBackupEnabled) return;
+
+    const intervalMinutes = Math.max(1, Number(backupSettings.autoBackupInterval) || 0);
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    const runAutoBackup = async () => {
+      if (!tauriAPI || autoBackupRunningRef.current) return;
+      autoBackupRunningRef.current = true;
+      try {
+        const data = collectBackupDataFromLocalStorage();
+        await tauriAPI.performBackup(JSON.stringify(data));
+      } catch (error) {
+        console.error("自动备份失败:", error);
+      } finally {
+        autoBackupRunningRef.current = false;
+      }
     };
 
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [isImmersive, zenModeSettings.enabled, zenModeSettings.sidebarVisible]);
+    void runAutoBackup();
 
-  useEffect(() => {
-    const runId = "run1";
-    const state = {
-      isImmersive,
-      zenEnabled: zenModeSettings.enabled,
-      sidebarVisible: zenModeSettings.sidebarVisible,
+    autoBackupTimerRef.current = window.setInterval(() => {
+      void runAutoBackup();
+    }, intervalMs);
+
+    return () => {
+      if (autoBackupTimerRef.current !== null) {
+        window.clearInterval(autoBackupTimerRef.current);
+        autoBackupTimerRef.current = null;
+      }
     };
-    const metrics = collectLayoutMetrics();
-    // #region agent log
-    fetch("http://127.0.0.1:7243/ingest/628db74e-682f-49ea-906e-f6821c0e6148", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId: "debug-session",
-        runId,
-        hypothesisId: "B",
-        location: "src/App.tsx:immersive",
-        message: "immersive state changed",
-        data: { state, metrics },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, [isImmersive]);
+  }, [backupSettings?.autoBackupEnabled, backupSettings?.autoBackupInterval]);
 
   // 应用字体设置
   useEffect(() => {
@@ -452,53 +273,11 @@ function App() {
     }
   }, [zenModeSettings.enabled, isImmersive]);
 
-  useEffect(() => {
-    const clearSidebarTimers = () => {
-      if (sidebarTopDetachTimerRef.current) {
-        window.clearTimeout(sidebarTopDetachTimerRef.current);
-        sidebarTopDetachTimerRef.current = null;
-      }
-      if (sidebarSlideTimerRef.current) {
-        window.clearTimeout(sidebarSlideTimerRef.current);
-        sidebarSlideTimerRef.current = null;
-      }
-    };
-
-    clearSidebarTimers();
-
-    const canAnimateSidebar =
-      zenModeSettings.enabled && zenModeSettings.sidebarVisible;
-    if (!canAnimateSidebar) {
-      setSidebarTopDetached(false);
-      setSidebarSlideHidden(false);
-      return clearSidebarTimers;
-    }
-
-    if (isImmersive) {
-      setSidebarTopDetached(true);
-      sidebarSlideTimerRef.current = window.setTimeout(() => {
-        setSidebarSlideHidden(true);
-      }, 45);
-      return clearSidebarTimers;
-    }
-
-    setSidebarSlideHidden(false);
-    sidebarTopDetachTimerRef.current = window.setTimeout(() => {
-      setSidebarTopDetached(false);
-    }, 240);
-
-    return clearSidebarTimers;
-  }, [isImmersive, zenModeSettings.enabled, zenModeSettings.sidebarVisible]);
-
   // 当前激活的标签页
   const activeTab =
     data.tabs.find((t) => t.id === data.activeTabId) || data.tabs[0];
   const sidebarBaseVisible = zenModeSettings.sidebarVisible;
-  const immersiveSidebarActive =
-    sidebarBaseVisible && zenModeSettings.enabled && isImmersive;
-  const sidebarHiddenForImmersive =
-    immersiveSidebarActive && sidebarSlideHidden;
-  const hideTopLevelChrome = immersiveSidebarActive && sidebarSlideHidden;
+  const hideTopLevelChrome = zenModeSettings.enabled && isImmersive;
 
   // 防抖保存
   const debounceSave = useCallback((newData: AppData) => {
@@ -1015,7 +794,12 @@ function App() {
 
       const newTabs = [...prev.tabs];
       const [movedTab] = newTabs.splice(fromIndex, 1);
-      newTabs.splice(toIndex, 0, movedTab);
+      const adjustedToIndex = fromIndex < toIndex ? toIndex - 1 : toIndex;
+      const finalToIndex = Math.max(
+        0,
+        Math.min(adjustedToIndex, newTabs.length),
+      );
+      newTabs.splice(finalToIndex, 0, movedTab);
 
       const now = Date.now();
       const touched = reindexTabs(newTabs).map((t) => ({
@@ -1123,8 +907,6 @@ function App() {
   const appClassName = [
     "app",
     sidebarBaseVisible ? "sidebar-visible" : "",
-    sidebarTopDetached ? "sidebar-top-detached" : "",
-    sidebarHiddenForImmersive ? "sidebar-hidden-for-immersive" : "",
     hideTopLevelChrome ? "immersive-ui-hidden" : "",
     isImmersive ? "immersive" : "",
   ]
@@ -1164,7 +946,7 @@ function App() {
             return newSettings;
           });
         }}
-        sidebarVisible={sidebarBaseVisible && !sidebarHiddenForImmersive}
+        sidebarVisible={sidebarBaseVisible}
         onOpenSearch={() => {
           setSearchModalTab("active");
           setShowSearch(true);
@@ -1193,11 +975,7 @@ function App() {
       <StatsOverlay
         lineCount={lineCount}
         charCount={charCount}
-        hidden={
-          isImmersive &&
-          zenModeSettings.enabled &&
-          zenModeSettings.hideStatsCapsule
-        }
+        hidden={zenModeSettings.enabled && zenModeSettings.hideStatsCapsule}
         onOpenHelp={() => setShowHelp(true)}
       />
       <Settings
@@ -1229,6 +1007,7 @@ function App() {
             return newSettings;
           });
         }}
+        onBackupSettingsChange={setBackupSettings}
       />
       <TabSearchModal
         isOpen={showSearch}
