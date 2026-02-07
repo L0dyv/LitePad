@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { RotateCcw, Search, X } from 'lucide-react'
 import { Tab, ClosedTab, ArchivedTab } from '../utils/storage'
+import { isSubsequence, toPinyinInitials } from '../utils/pinyin'
 import { ConfirmDialog } from './ConfirmDialog'
 import './TabSearchModal.css'
 
@@ -110,7 +111,12 @@ export function TabSearchModal({
 
             const titleLower = tab.title.toLowerCase()
             const titleIndex = titleLower.indexOf(lowerQuery)
-            if (titleIndex !== -1) {
+            const compactQuery = lowerQuery.replace(/\s+/g, '')
+            const titleInitials = compactQuery ? toPinyinInitials(tab.title) : ''
+            const matchedByPinyin =
+                compactQuery.length > 0 &&
+                (titleInitials.includes(compactQuery) || isSubsequence(compactQuery, titleInitials))
+            if (titleIndex !== -1 || matchedByPinyin) {
                 searchResults.push({
                     tab,
                     type: activeTab,

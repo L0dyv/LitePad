@@ -77,6 +77,8 @@ const codeFenceLanguages: readonly LanguageDescription[] = [
   LanguageDescription.of({ name: "CSS", alias: ["css"], support: css() }),
 ];
 
+const WRAP_SYMBOL_SET = new Set(["-", "*", "/", "_", "~", "`", "|"]);
+
 // 链接装饰器样式
 const linkMark = Decoration.mark({ class: "cm-link-url" });
 
@@ -672,6 +674,10 @@ export function Editor({
 
     const indentText = tabIndentText;
     const tabSize = 4;
+    const wordSegmenter =
+      typeof Intl !== "undefined" && "Segmenter" in Intl
+        ? new Intl.Segmenter("zh-Hans", { granularity: "word" })
+        : null;
 
     // 自定义主题
     const theme = EditorView.theme(
@@ -1046,6 +1052,139 @@ export function Editor({
       { key: "Enter", run: insertNewlineContinueMarkup },
     ]);
 
+    const findDeleteBoundary = (
+      text: string,
+      pos: number,
+      direction: "backward" | "forward",
+    ): number => {
+      if (direction === "backward") {
+        if (pos <= 0) return 0;
+        let cursor = pos;
+        while (cursor > 0 && /\s/.test(text[cursor - 1])) cursor -= 1;
+        if (cursor !== pos) return cursor;
+
+        if (wordSegmenter) {
+          const segments = Array.from(wordSegmenter.segment(text));
+          let previousSegmentStart = 0;
+          for (const segment of segments) {
+            const start = segment.index;
+            const end = start + segment.segment.length;
+
+            if (end >= cursor) {
+              if (start < cursor && segment.isWordLike) return start;
+              return previousSegmentStart;
+            }
+
+            previousSegmentStart = start;
+          }
+        }
+
+        cursor = pos;
+        while (cursor > 0 && /[a-z0-9_]/i.test(text[cursor - 1])) cursor -= 1;
+        if (cursor !== pos) return cursor;
+
+        cursor = pos;
+        while (cursor > 0 && !/\s/.test(text[cursor - 1])) cursor -= 1;
+        return cursor;
+      }
+
+      if (pos >= text.length) return text.length;
+      let cursor = pos;
+      while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+      if (cursor !== pos) return cursor;
+
+      if (wordSegmenter) {
+        const segments = Array.from(wordSegmenter.segment(text));
+        for (const segment of segments) {
+          const start = segment.index;
+          const end = start + segment.segment.length;
+
+          if (start > cursor) {
+            return end;
+          }
+          if (start <= cursor && end > cursor) {
+            if (segment.isWordLike) return end;
+          }
+        }
+      }
+
+      cursor = pos;
+      while (cursor < text.length && /[a-z0-9_]/i.test(text[cursor]))
+        cursor += 1;
+      if (cursor !== pos) return cursor;
+
+      cursor = pos;
+      while (cursor < text.length && !/\s/.test(text[cursor])) cursor += 1;
+      return cursor;
+    };
+
+    const wordDeleteKeymap = keymap.of([
+      {
+        key: "Ctrl-Backspace",
+        run: (view) => {
+          const range = view.state.selection.main;
+          if (!range.empty) {
+            view.dispatch({
+              changes: { from: range.from, to: range.to, insert: "" },
+              selection: { anchor: range.from },
+              userEvent: "delete",
+            });
+            return true;
+          }
+
+          const docText = view.state.doc.toString();
+          const from = findDeleteBoundary(docText, range.from, "backward");
+          if (from === range.from) return false;
+          view.dispatch({
+            changes: { from, to: range.from, insert: "" },
+            selection: { anchor: from },
+            userEvent: "delete",
+          });
+          return true;
+        },
+      },
+      {
+        key: "Ctrl-Delete",
+        run: (view) => {
+          const range = view.state.selection.main;
+          if (!range.empty) {
+            view.dispatch({
+              changes: { from: range.from, to: range.to, insert: "" },
+              selection: { anchor: range.from },
+              userEvent: "delete",
+            });
+            return true;
+          }
+
+          const docText = view.state.doc.toString();
+          const to = findDeleteBoundary(docText, range.from, "forward");
+          if (to === range.from) return false;
+          view.dispatch({
+            changes: { from: range.from, to, insert: "" },
+            selection: { anchor: range.from },
+            userEvent: "delete",
+          });
+          return true;
+        },
+      },
+    ]);
+
+    const wrapSelectionInputHandler = EditorView.inputHandler.of(
+      (view, from, to, text) => {
+        if (text.length !== 1 || !WRAP_SYMBOL_SET.has(text)) return false;
+        const range = view.state.selection.main;
+        if (range.empty || range.from !== from || range.to !== to) return false;
+
+        const selectedText = view.state.sliceDoc(from, to);
+        view.dispatch({
+          changes: { from, to, insert: `${text}${selectedText}${text}` },
+          selection: { anchor: from + 1, head: from + 1 + selectedText.length },
+          userEvent: "input",
+        });
+        return true;
+      },
+    );
+
     const handleTabIndent = (direction: "indent" | "outdent") => {
       const view = viewRef.current;
       if (!view) return false;
@@ -1309,9 +1448,11 @@ export function Editor({
         // 计算功能键盘映射放最前面，确保优先级
         calculateKeymap,
         tabIndentKeymap,
+        wordDeleteKeymap,
         ...(enableQuickSymbolInput ? [quickSymbolKeymap] : []),
         continueMarkupKeymap,
         imeCompositionGuard,
+        wrapSelectionInputHandler,
         EditorState.tabSize.of(tabSize),
         indentUnit.of(indentText),
         markdownExtension,
