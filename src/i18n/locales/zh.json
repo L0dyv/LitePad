@@ -47,7 +47,7 @@
     "version": "版本",
     "zenMode": "禅模式",
     "zenModeEnabled": "启用禅模式",
-    "zenHideStatsCapsule": "隐藏统计胶囊",
+    "zenHideStatsCapsule": "隐藏字数统计",
     "toggleSidebar": "切换侧边栏",
     "backup": "备份",
     "backupDirectory": "备份目录",

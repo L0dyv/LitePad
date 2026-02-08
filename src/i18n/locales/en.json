@@ -47,7 +47,7 @@
     "version": "Version",
     "zenMode": "Zen Mode",
     "zenModeEnabled": "Enable Zen Mode",
-    "zenHideStatsCapsule": "Hide stats capsule",
+    "zenHideStatsCapsule": "Hide word count",
     "toggleSidebar": "Toggle Sidebar",
     "backup": "Backup",
     "backupDirectory": "Backup Directory",
