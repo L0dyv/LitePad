@@ -199,16 +199,14 @@ export function Sidebar({
     setContextMenu((prev) => ({ ...prev, visible: false }));
   };
 
-  // 拖拽排序相关处理
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    if (editingId) {
-      e.preventDefault();
-      return;
-    }
-    setDraggedIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", index.toString());
-  };
+  const pointerDragRef = useRef<{
+    pointerId: number;
+    fromIndex: number;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+  } | null>(null);
+  const ignoreClickRef = useRef(false);
 
   const isValidDropTarget = (fromIndex: number, toIndex: number) => {
     const pinnedCount = tabs.filter((t) => !!t.pinned).length;
@@ -216,33 +214,104 @@ export function Sidebar({
     return fromPinned ? toIndex < pinnedCount : toIndex >= pinnedCount;
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    if (draggedIndex === null || draggedIndex === index) return;
-    if (!isValidDropTarget(draggedIndex, index)) {
+  const getTabIndexFromPoint = (x: number, y: number): number | null => {
+    const el = document.elementFromPoint(x, y) as HTMLElement | null;
+    const tabEl = el?.closest<HTMLElement>(".sidebar-tab");
+    const rawIndex = tabEl?.dataset.index;
+    if (!rawIndex) return null;
+    const idx = Number(rawIndex);
+    if (!Number.isInteger(idx)) return null;
+    return idx;
+  };
+
+  const handleTabPointerDown = (
+    e: React.PointerEvent<HTMLDivElement>,
+    index: number,
+  ) => {
+    if (!onTabReorder) return;
+    if (editingId) return;
+    if (e.button !== 0) return;
+
+    pointerDragRef.current = {
+      pointerId: e.pointerId,
+      fromIndex: index,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+    };
+
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+
+  const handleTabPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = pointerDragRef.current;
+    if (!drag) return;
+    if (!onTabReorder) return;
+    if (drag.pointerId !== e.pointerId) return;
+
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    const threshold = 4;
+    if (!drag.dragging) {
+      if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
+      drag.dragging = true;
+      setDraggedIndex(drag.fromIndex);
+    }
+
+    e.preventDefault();
+
+    const overIndex = getTabIndexFromPoint(e.clientX, e.clientY);
+    if (overIndex === null || overIndex === drag.fromIndex) {
       setDragOverIndex(null);
       return;
     }
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    setDragOverIndex(index);
+
+    if (!isValidDropTarget(drag.fromIndex, overIndex)) {
+      setDragOverIndex(null);
+      return;
+    }
+
+    setDragOverIndex(overIndex);
   };
 
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
+  const endPointerDrag = (
+    e: React.PointerEvent<HTMLDivElement>,
+    options: { canceled: boolean },
+  ) => {
+    const drag = pointerDragRef.current;
+    if (!drag) return;
+    if (drag.pointerId !== e.pointerId) return;
 
-  const handleDrop = (e: React.DragEvent, toIndex: number) => {
-    e.preventDefault();
-    if (draggedIndex !== null && draggedIndex !== toIndex && onTabReorder) {
-      if (isValidDropTarget(draggedIndex, toIndex)) {
-        onTabReorder(draggedIndex, toIndex);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+
+    pointerDragRef.current = null;
+
+    if (!drag.dragging) {
+      setDraggedIndex(null);
+      setDragOverIndex(null);
+      return;
+    }
+
+    ignoreClickRef.current = true;
+    window.setTimeout(() => {
+      ignoreClickRef.current = false;
+    }, 0);
+
+    if (!options.canceled && onTabReorder) {
+      const toIndex = getTabIndexFromPoint(e.clientX, e.clientY);
+      if (
+        toIndex !== null &&
+        toIndex !== drag.fromIndex &&
+        isValidDropTarget(drag.fromIndex, toIndex)
+      ) {
+        onTabReorder(drag.fromIndex, toIndex);
       }
     }
-    setDraggedIndex(null);
-    setDragOverIndex(null);
-  };
 
-  const handleDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
   };
@@ -303,15 +372,17 @@ export function Sidebar({
             <div
               key={tab.id}
               className={`sidebar-tab ${tab.pinned ? "pinned" : ""} ${tab.id === activeTabId ? "active" : ""}${draggedIndex === index ? " dragging" : ""}${dragOverIndex === index ? " drag-over" : ""}`}
-              draggable={editingId !== tab.id}
-              onClick={() => editingId !== tab.id && onTabClick(tab.id)}
+              data-index={index}
+              onClick={() => {
+                if (ignoreClickRef.current) return;
+                if (editingId !== tab.id) onTabClick(tab.id);
+              }}
               onDoubleClick={() => handleDoubleClick(tab)}
               onContextMenu={(e) => handleContextMenu(e, tab.id)}
-              onDragStart={(e) => handleDragStart(e, index)}
-              onDragOver={(e) => handleDragOver(e, index)}
-              onDragLeave={handleDragLeave}
-              onDrop={(e) => handleDrop(e, index)}
-              onDragEnd={handleDragEnd}
+              onPointerDown={(e) => handleTabPointerDown(e, index)}
+              onPointerMove={handleTabPointerMove}
+              onPointerUp={(e) => endPointerDrag(e, { canceled: false })}
+              onPointerCancel={(e) => endPointerDrag(e, { canceled: true })}
             >
               <div
                 className={`sidebar-tab-label ${editingId === tab.id ? "editing" : ""}`}
@@ -331,6 +402,7 @@ export function Sidebar({
                     onKeyDown={(e) => handleKeyDown(e, tab.id)}
                     onBlur={() => handleRenameConfirm(tab.id)}
                     onClick={(e) => e.stopPropagation()}
+                    onPointerDown={(e) => e.stopPropagation()}
                   />
                 ) : (
                   <span className="sidebar-tab-title">{tab.title}</span>
@@ -340,6 +412,7 @@ export function Sidebar({
                 <button
                   className="sidebar-tab-close"
                   onClick={(e) => handleClose(e, tab.id)}
+                  onPointerDown={(e) => e.stopPropagation()}
                 >
                   ×
                 </button>
