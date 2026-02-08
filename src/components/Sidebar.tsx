@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Archive, MapPin, Plus, Trash2 } from "lucide-react";
-import { Tab } from "../utils/storage";
+import { Tab, TabSortMode } from "../utils/storage";
 import { ContextMenu, MenuItem } from "./ContextMenu";
 import { ModalTab } from "./TabSearchModal";
 import "./Sidebar.css";
@@ -21,6 +21,8 @@ interface SidebarProps {
   onTabPinToggle: (id: string) => void;
   onTabReorder?: (fromIndex: number, toIndex: number) => void;
   onTabArchive: (id: string) => void;
+  tabSortMode?: TabSortMode;
+  onTabSortModeChange?: (mode: TabSortMode) => void;
   onOpenModal: (tab: ModalTab) => void;
   renameRequestToken?: number;
   onRenameComplete?: () => void;
@@ -68,6 +70,8 @@ export function Sidebar({
   onTabPinToggle,
   onTabReorder,
   onTabArchive,
+  tabSortMode,
+  onTabSortModeChange,
   onOpenModal,
   renameRequestToken,
   onRenameComplete,
@@ -345,6 +349,20 @@ export function Sidebar({
         },
       },
     ];
+
+    if (tabSortMode && onTabSortModeChange) {
+      items.push({ separator: true });
+      items.push({
+        label: t("tabBar.sortManual"),
+        checked: tabSortMode === "manual",
+        onClick: () => onTabSortModeChange("manual"),
+      });
+      items.push({
+        label: t("tabBar.sortLastEdited"),
+        checked: tabSortMode === "updatedAt",
+        onClick: () => onTabSortModeChange("updatedAt"),
+      });
+    }
 
     if (tabs.length > 1 && !tab.pinned) {
       items.push({

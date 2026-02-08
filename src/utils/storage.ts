@@ -33,6 +33,8 @@ export interface StatusBarSettings {
     showCharCount: boolean
 }
 
+export type TabSortMode = 'manual' | 'updatedAt'
+
 // Storage keys (用于设置迁移兼容)
 const SHORTCUTS_KEY = 'flashpad-shortcuts'
 const STATUSBAR_KEY = 'flashpad-statusbar'
@@ -44,6 +46,7 @@ const EDITOR_LINE_HEIGHT_KEY = 'flashpad-editor-line-height'
 const EDITOR_CODE_BLOCK_HIGHLIGHT_KEY = 'flashpad-editor-code-block-highlight'
 const EDITOR_QUICK_SYMBOL_INPUT_KEY = 'flashpad-editor-quick-symbol-input'
 const ZEN_MODE_KEY = 'flashpad-zen-mode'
+const TAB_SORT_KEY = 'flashpad-tab-sort-mode'
 
 // 默认快捷键
 export const DEFAULT_SHORTCUTS: ShortcutSettings = {
@@ -76,6 +79,7 @@ export const DEFAULT_EDITOR_TAB_INDENT_TEXT = '    '
 export const DEFAULT_EDITOR_LINE_HEIGHT = 1.6
 export const DEFAULT_EDITOR_CODE_BLOCK_HIGHLIGHT = false
 export const DEFAULT_EDITOR_QUICK_SYMBOL_INPUT = true
+export const DEFAULT_TAB_SORT_MODE: TabSortMode = 'manual'
 const MIN_EDITOR_LINE_HEIGHT = 1
 const MAX_EDITOR_LINE_HEIGHT = 3
 
@@ -440,6 +444,26 @@ export function saveEditorQuickSymbolInput(enabled: boolean): void {
         db.setSetting(EDITOR_QUICK_SYMBOL_INPUT_KEY, normalized).catch(console.error)
     } catch (e) {
         console.error('保存快捷符号输入设置失败:', e)
+    }
+}
+
+export function loadTabSortMode(): TabSortMode {
+    try {
+        const stored = localStorage.getItem(TAB_SORT_KEY)
+        if (stored === 'manual' || stored === 'updatedAt') return stored
+    } catch (e) {
+        console.error('加载标签页排序设置失败:', e)
+    }
+    return DEFAULT_TAB_SORT_MODE
+}
+
+export function saveTabSortMode(mode: TabSortMode): void {
+    const normalized: TabSortMode = mode === 'updatedAt' ? 'updatedAt' : 'manual'
+    try {
+        localStorage.setItem(TAB_SORT_KEY, normalized)
+        db.setSetting(TAB_SORT_KEY, normalized).catch(console.error)
+    } catch (e) {
+        console.error('保存标签页排序设置失败:', e)
     }
 }
 

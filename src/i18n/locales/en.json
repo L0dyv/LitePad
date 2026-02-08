@@ -119,7 +119,9 @@
     "closeOthers": "Close other tabs",
     "defaultPage": "Default",
     "newPage": "New Page",
-    "archive": "Archive"
+    "archive": "Archive",
+    "sortManual": "Sort by manual order",
+    "sortLastEdited": "Sort by last edited time"
   },
   "titleBar": {
     "currentDark": "Current: Dark mode",

@@ -119,7 +119,9 @@
     "closeOthers": "关闭其他标签页",
     "defaultPage": "默认页",
     "newPage": "新建页",
-    "archive": "归档"
+    "archive": "归档",
+    "sortManual": "按手动顺序排序",
+    "sortLastEdited": "按最后编辑时间排序"
   },
   "titleBar": {
     "currentDark": "当前: 深色模式",

@@ -12,6 +12,7 @@ import {
   saveData,
   createTab,
   AppData,
+  TabSortMode,
   loadShortcuts,
   ShortcutSettings,
   matchShortcut,
@@ -36,6 +37,8 @@ import {
   ZenModeSettings,
   loadZenMode,
   saveZenMode,
+  loadTabSortMode,
+  saveTabSortMode,
   initStorage,
   refreshCache,
   reindexTabs,
@@ -46,6 +49,21 @@ import { tauriAPI, BackupSettings } from "./lib/tauri-api";
 import { collectBackupDataFromLocalStorage } from "./utils/backup";
 import { ConflictResolver, Conflict } from "./components/ConflictResolver";
 import "./styles/App.css";
+
+function getSidebarTabs(tabs: AppData["tabs"], mode: TabSortMode): AppData["tabs"] {
+  if (mode === "manual") return tabs;
+
+  const compare = (a: AppData["tabs"][number], b: AppData["tabs"][number]) => {
+    if (a.updatedAt !== b.updatedAt) return b.updatedAt - a.updatedAt;
+    const ao = typeof a.order === "number" ? a.order : 0;
+    const bo = typeof b.order === "number" ? b.order : 0;
+    return ao - bo;
+  };
+
+  const pinned = tabs.filter((t) => !!t.pinned).sort(compare);
+  const unpinned = tabs.filter((t) => !t.pinned).sort(compare);
+  return [...pinned, ...unpinned];
+}
 
 function App() {
   const { t } = useTranslation();
@@ -88,6 +106,9 @@ function App() {
   );
   const [zenModeSettings, setZenModeSettings] = useState<ZenModeSettings>(() =>
     loadZenMode(),
+  );
+  const [tabSortMode, setTabSortMode] = useState<TabSortMode>(() =>
+    loadTabSortMode(),
   );
   const [renameRequestToken, setRenameRequestToken] = useState(0);
   const sidebarWasHiddenRef = useRef(false);
@@ -813,6 +834,11 @@ function App() {
     });
   }, []);
 
+  const handleTabSortModeChange = useCallback((mode: TabSortMode) => {
+    setTabSortMode(mode);
+    saveTabSortMode(mode);
+  }, []);
+
   // 更新标签页内容
   const handleContentChange = (content: string) => {
     setData((prev) => ({
@@ -917,15 +943,17 @@ function App() {
     <div ref={appRootRef} className={appClassName}>
       {sidebarBaseVisible && (
         <Sidebar
-          tabs={data.tabs}
+          tabs={getSidebarTabs(data.tabs, tabSortMode)}
           activeTabId={data.activeTabId}
           onTabClick={handleTabClick}
           onTabClose={handleTabClose}
           onTabAdd={handleTabAdd}
           onTabRename={handleTabRename}
           onTabPinToggle={handleTabPinToggle}
-          onTabReorder={handleTabReorder}
+          onTabReorder={tabSortMode === "manual" ? handleTabReorder : undefined}
           onTabArchive={handleArchiveTab}
+          tabSortMode={tabSortMode}
+          onTabSortModeChange={handleTabSortModeChange}
           renameRequestToken={renameRequestToken}
           onRenameComplete={handleRenameComplete}
           onOpenModal={(tab) => {
