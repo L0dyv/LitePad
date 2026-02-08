@@ -1,6 +1,6 @@
 {
     "name": "litepad",
-    "version": "2.1.4",
+    "version": "2.1.5",
     "description": "Fast, local, high-performance scratch pad",
     "type": "module",
     "scripts": {
