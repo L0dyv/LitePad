@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Archive, MapPin, Plus, Trash2 } from "lucide-react";
+import { useVirtualList } from "../hooks/useVirtualList";
 import { Tab, TabSortMode } from "../utils/storage";
 import { ContextMenu, MenuItem } from "./ContextMenu";
 import { ModalTab } from "./TabSearchModal";
@@ -91,7 +92,18 @@ export function Sidebar({
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const sidebarRef = useRef<HTMLElement>(null);
+  const tabsScrollRef = useRef<HTMLDivElement>(null);
   const isF2RenameRef = useRef(false);
+
+  const shouldVirtualizeTabs = tabs.length >= 80;
+  const virtualTabs = useVirtualList({
+    enabled: shouldVirtualizeTabs,
+    itemCount: tabs.length,
+    scrollElementRef: tabsScrollRef,
+    itemSelector: ".sidebar-tab",
+    overscan: 8,
+    estimateItemStride: 36,
+  });
 
   // 当进入编辑模式时，聚焦输入框
   useEffect(() => {
@@ -385,8 +397,25 @@ export function Sidebar({
           maxWidth: `${width}px`,
         }}
       >
-        <div className="sidebar-tabs">
-          {tabs.map((tab, index) => (
+        <div className="sidebar-tabs" ref={tabsScrollRef}>
+          {shouldVirtualizeTabs && virtualTabs.topSpacerHeight > 0 && (
+            <div
+              aria-hidden="true"
+              style={{
+                height: virtualTabs.topSpacerHeight,
+                pointerEvents: "none",
+              }}
+            />
+          )}
+          {(shouldVirtualizeTabs
+            ? tabs.slice(virtualTabs.startIndex, virtualTabs.endIndex + 1)
+            : tabs
+          ).map((tab, windowIndex) => {
+            const index = shouldVirtualizeTabs
+              ? virtualTabs.startIndex + windowIndex
+              : windowIndex;
+
+            return (
             <div
               key={tab.id}
               className={`sidebar-tab ${tab.pinned ? "pinned" : ""} ${tab.id === activeTabId ? "active" : ""}${draggedIndex === index ? " dragging" : ""}${dragOverIndex === index ? " drag-over" : ""}`}
@@ -436,7 +465,17 @@ export function Sidebar({
                 </button>
               )}
             </div>
-          ))}
+            );
+          })}
+          {shouldVirtualizeTabs && virtualTabs.bottomSpacerHeight > 0 && (
+            <div
+              aria-hidden="true"
+              style={{
+                height: virtualTabs.bottomSpacerHeight,
+                pointerEvents: "none",
+              }}
+            />
+          )}
         </div>
         <div className="sidebar-footer">
           <button

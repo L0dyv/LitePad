@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { RotateCcw, Search, X } from 'lucide-react'
 import { Tab, ClosedTab, ArchivedTab } from '../utils/storage'
 import { isSubsequence, toPinyinInitials } from '../utils/pinyin'
+import { useVirtualList } from '../hooks/useVirtualList'
 import { ConfirmDialog } from './ConfirmDialog'
 import './TabSearchModal.css'
 
@@ -85,6 +86,8 @@ export function TabSearchModal({
 
     // 根据当前 tab 和搜索词过滤结果
     const results = useMemo((): SearchResult[] => {
+        if (!isOpen) return []
+
         const searchResults: SearchResult[] = []
         const q = debouncedQuery.trim()
         const lowerQuery = q.toLowerCase()
@@ -176,7 +179,23 @@ export function TabSearchModal({
         }
 
         return searchResults
-    }, [debouncedQuery, tabs, archivedTabs, closedTabs, activeTab])
+    }, [isOpen, debouncedQuery, tabs, archivedTabs, closedTabs, activeTab])
+
+    const shouldVirtualizeResults = debouncedQuery.trim().length === 0 && results.length >= 200
+    const {
+        startIndex: resultStartIndex,
+        endIndex: resultEndIndex,
+        topSpacerHeight: resultTopSpacerHeight,
+        bottomSpacerHeight: resultBottomSpacerHeight,
+        scrollToIndex: scrollResultToIndex,
+    } = useVirtualList({
+        enabled: shouldVirtualizeResults,
+        itemCount: results.length,
+        scrollElementRef: listRef,
+        itemSelector: '.search-result-item',
+        overscan: 8,
+        estimateItemStride: 36,
+    })
 
     // 重置选中索引
     useEffect(() => {
@@ -185,13 +204,18 @@ export function TabSearchModal({
 
     // 滚动到选中项
     useEffect(() => {
-        if (listRef.current) {
-            const selectedItem = listRef.current.querySelector('.search-result-item.selected')
-            if (selectedItem) {
-                selectedItem.scrollIntoView({ block: 'nearest' })
-            }
+        if (!listRef.current) return
+
+        if (shouldVirtualizeResults) {
+            scrollResultToIndex(selectedIndex, 'nearest')
+            return
         }
-    }, [selectedIndex])
+
+        const selectedItem = listRef.current.querySelector('.search-result-item.selected')
+        if (selectedItem) {
+            selectedItem.scrollIntoView({ block: 'nearest' })
+        }
+    }, [selectedIndex, shouldVirtualizeResults, scrollResultToIndex])
 
     // 键盘导航
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -353,7 +377,21 @@ export function TabSearchModal({
                         {results.length === 0 ? (
                             <div className="search-empty">{getEmptyMessage()}</div>
                         ) : (
-                            results.map((result, index) => {
+                            <>
+                                {shouldVirtualizeResults && resultTopSpacerHeight > 0 && (
+                                    <div
+                                        aria-hidden="true"
+                                        style={{ height: resultTopSpacerHeight, pointerEvents: 'none' }}
+                                    />
+                                )}
+                                {(shouldVirtualizeResults
+                                    ? results.slice(resultStartIndex, resultEndIndex + 1)
+                                    : results
+                                ).map((result, windowIndex) => {
+                                    const index = shouldVirtualizeResults
+                                        ? resultStartIndex + windowIndex
+                                        : windowIndex
+
                                 const resultKey = result.kind === 'content' && result.jumpTo
                                     ? `${result.type}-${result.tab.id}-c-${result.jumpTo.from}`
                                     : result.kind === 'title' && result.titleHighlight
@@ -367,6 +405,7 @@ export function TabSearchModal({
                                 return (
                                     <div
                                         key={resultKey}
+                                        data-index={index}
                                         className={`search-result-item ${index === selectedIndex ? 'selected' : ''}`}
                                         onClick={() => handleSelect(result)}
                                         onMouseEnter={() => setSelectedIndex(index)}
@@ -404,7 +443,14 @@ export function TabSearchModal({
                                         )}
                                     </div>
                                 )
-                            })
+                                })}
+                                {shouldVirtualizeResults && resultBottomSpacerHeight > 0 && (
+                                    <div
+                                        aria-hidden="true"
+                                        style={{ height: resultBottomSpacerHeight, pointerEvents: 'none' }}
+                                    />
+                                )}
+                            </>
                         )}
                     </div>
 
