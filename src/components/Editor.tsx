@@ -556,6 +556,7 @@ export function Editor({
   const isAutoRenumbering = useRef(false);
   const isImeComposingRef = useRef(false);
   const lastCompositionEndAtRef = useRef(0);
+  const lastEmittedContentRef = useRef(content);
   const flashTimeoutRef = useRef<number | null>(null);
   const flashTokenRef = useRef(0);
   const [editorContextMenu, setEditorContextMenu] = useState({
@@ -1036,6 +1037,18 @@ export function Editor({
       compositionend: () => {
         isImeComposingRef.current = false;
         lastCompositionEndAtRef.current = Date.now();
+
+        queueMicrotask(() => {
+          const currentView = viewRef.current;
+          if (!currentView) return;
+          if (currentView.composing) return;
+
+          const docText = currentView.state.doc.toString();
+          if (docText === lastEmittedContentRef.current) return;
+          lastEmittedContentRef.current = docText;
+          onChange(docText);
+          onActivity?.("typing");
+        });
         return false;
       },
     });
@@ -1466,6 +1479,7 @@ export function Editor({
         theme,
         EditorView.updateListener.of((update) => {
           if (!update.docChanged || isExternalUpdate.current) return;
+          if (update.view.composing || isImeComposingRef.current) return;
 
           const hasInsertedNewline = (tx: Transaction) => {
             let found = false;
@@ -1527,7 +1541,9 @@ export function Editor({
             }
           }
 
-          onChange(update.state.doc.toString());
+          const docText = update.state.doc.toString();
+          lastEmittedContentRef.current = docText;
+          onChange(docText);
           onActivity?.("typing");
         }),
         EditorView.lineWrapping,
@@ -1560,16 +1576,23 @@ export function Editor({
 
   // 外部内容更新时同步到编辑器
   useEffect(() => {
-    if (viewRef.current && content !== viewRef.current.state.doc.toString()) {
+    const view = viewRef.current;
+    if (!view) return;
+
+    if (content !== view.state.doc.toString()) {
+      if (view.hasFocus) return;
+      if (view.composing || isImeComposingRef.current) return;
+
       isExternalUpdate.current = true;
-      viewRef.current.dispatch({
+      view.dispatch({
         changes: {
           from: 0,
-          to: viewRef.current.state.doc.length,
+          to: view.state.doc.length,
           insert: content,
         },
       });
       isExternalUpdate.current = false;
+      lastEmittedContentRef.current = content;
     }
   }, [content]);
 
