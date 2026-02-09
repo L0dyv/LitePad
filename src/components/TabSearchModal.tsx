@@ -25,9 +25,11 @@ interface TabSearchModalProps {
     onClearTrash?: () => void
 }
 
-interface JumpTarget {
-    from: number
-    to: number
+export interface JumpTarget {
+    query: string
+    occurrence: number
+    matchLength: number
+    snippet?: string
     line?: number
     column?: number
 }
@@ -133,9 +135,11 @@ export function TabSearchModal({
             let startIndex = 0
             let scanIndex = 0
             let scanLine = 1
+            let occurrence = 0
             while (searchResults.length < MAX_RESULTS) {
                 const matchIndex = contentLower.indexOf(lowerQuery, startIndex)
                 if (matchIndex === -1) break
+                occurrence += 1
 
                 while (scanIndex < matchIndex) {
                     const nextNewline = contentLower.indexOf('\n', scanIndex)
@@ -166,8 +170,10 @@ export function TabSearchModal({
                     type: activeTab,
                     kind: 'content',
                     jumpTo: {
-                        from: matchIndex,
-                        to: matchIndex + lowerQuery.length,
+                        query: q,
+                        occurrence,
+                        matchLength: lowerQuery.length,
+                        snippet: rawSnippet,
                         line: scanLine,
                         column: withinLineIndex + 1,
                     },
@@ -393,7 +399,7 @@ export function TabSearchModal({
                                         : windowIndex
 
                                 const resultKey = result.kind === 'content' && result.jumpTo
-                                    ? `${result.type}-${result.tab.id}-c-${result.jumpTo.from}`
+                                    ? `${result.type}-${result.tab.id}-c-${result.jumpTo.occurrence}`
                                     : result.kind === 'title' && result.titleHighlight
                                         ? `${result.type}-${result.tab.id}-t-${result.titleHighlight.from}`
                                         : `${result.type}-${result.tab.id}`

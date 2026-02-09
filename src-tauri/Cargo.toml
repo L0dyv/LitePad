@@ -1,6 +1,6 @@
 [package]
 name = "litepad"
-version = "2.1.5"
+version = "3.0.0"
 description = "Fast, local, high-performance scratch pad"
 authors = ["LitePad"]
 edition = "2021"

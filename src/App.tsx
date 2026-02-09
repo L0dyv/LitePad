@@ -6,7 +6,7 @@ import { TitleBar } from "./components/TitleBar";
 import { Settings } from "./components/Settings";
 import { StatsOverlay } from "./components/StatsOverlay";
 import { HelpPanel } from "./components/HelpPanel";
-import { TabSearchModal, ModalTab } from "./components/TabSearchModal";
+import { TabSearchModal, ModalTab, type JumpTarget } from "./components/TabSearchModal";
 import {
   loadData,
   saveData,
@@ -76,8 +76,12 @@ function App() {
   const [showHelp, setShowHelp] = useState(false);
   const [editorJump, setEditorJump] = useState<{
     tabId: string;
-    from: number;
-    to: number;
+    query: string;
+    occurrence: number;
+    matchLength: number;
+    snippet?: string;
+    line?: number;
+    column?: number;
     token: number;
   } | null>(null);
   const [searchModalTab, setSearchModalTab] = useState<ModalTab>("active");
@@ -132,13 +136,10 @@ function App() {
   const appRootRef = useRef<HTMLDivElement>(null);
   const jumpTokenRef = useRef(0);
 
-  const requestEditorJump = useCallback(
-    (tabId: string, from: number, to: number) => {
-      jumpTokenRef.current += 1;
-      setEditorJump({ tabId, from, to, token: jumpTokenRef.current });
-    },
-    [],
-  );
+  const requestEditorJump = useCallback((tabId: string, jumpTo: JumpTarget) => {
+    jumpTokenRef.current += 1;
+    setEditorJump({ tabId, ...jumpTo, token: jumpTokenRef.current });
+  }, []);
 
   const handleJumpApplied = useCallback((token: number) => {
     setEditorJump((prev) => (prev && prev.token === token ? null : prev));
@@ -404,7 +405,7 @@ function App() {
 
   // 从回收站恢复指定标签页
   const handleRestoreFromTrash = useCallback(
-    (tab: ClosedTab, jumpTo?: { from: number; to: number }) => {
+    (tab: ClosedTab, jumpTo?: JumpTarget) => {
       // 从回收站中移除该标签页
       const remaining = removeClosedTab(tab);
       setClosedTabs(remaining);
@@ -424,7 +425,7 @@ function App() {
         };
       });
       if (jumpTo) {
-        requestEditorJump(restoredTab.id, jumpTo.from, jumpTo.to);
+        requestEditorJump(restoredTab.id, jumpTo);
       }
     },
     [requestEditorJump],
@@ -462,7 +463,7 @@ function App() {
 
   // 从归档恢复标签页
   const handleRestoreFromArchive = useCallback(
-    (tab: ArchivedTab, jumpTo?: { from: number; to: number }) => {
+    (tab: ArchivedTab, jumpTo?: JumpTarget) => {
       const remaining = removeArchivedTab(tab);
       setArchivedTabs(remaining);
       // 恢复标签页
@@ -485,7 +486,7 @@ function App() {
         };
       });
       if (jumpTo) {
-        requestEditorJump(restoredTab.id, jumpTo.from, jumpTo.to);
+        requestEditorJump(restoredTab.id, jumpTo);
       }
     },
     [requestEditorJump],
@@ -927,7 +928,15 @@ function App() {
   const lineCount = activeTab?.content.split("\n").length || 1;
   const activeJump =
     editorJump && activeTab && editorJump.tabId === activeTab.id
-      ? { from: editorJump.from, to: editorJump.to, token: editorJump.token }
+      ? {
+          query: editorJump.query,
+          occurrence: editorJump.occurrence,
+          matchLength: editorJump.matchLength,
+          snippet: editorJump.snippet,
+          line: editorJump.line,
+          column: editorJump.column,
+          token: editorJump.token,
+        }
       : null;
 
   const appClassName = [
@@ -1047,7 +1056,7 @@ function App() {
         onSelectTab={(tab, jumpTo) => {
           setData((prev) => ({ ...prev, activeTabId: tab.id }));
           if (jumpTo) {
-            requestEditorJump(tab.id, jumpTo.from, jumpTo.to);
+            requestEditorJump(tab.id, jumpTo);
           }
           setShowSearch(false);
         }}

@@ -1,526 +1,63 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { useTranslation } from "react-i18next";
-import {
-  EditorState,
-  RangeSetBuilder,
-  StateEffect,
-  StateField,
-  Transaction,
-} from "@codemirror/state";
-import {
-  EditorView,
-  keymap,
-  highlightActiveLine,
-  Decoration,
-  ViewPlugin,
-  MatchDecorator,
-  DecorationSet,
-  WidgetType,
-  ViewUpdate,
-} from "@codemirror/view";
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  redo,
-  undo,
-} from "@codemirror/commands";
-import { searchKeymap, highlightSelectionMatches } from "@codemirror/search";
-import {
-  markdown,
-  markdownLanguage,
-  insertNewlineContinueMarkup,
-} from "@codemirror/lang-markdown";
-import {
-  syntaxHighlighting,
-  defaultHighlightStyle,
-  indentUnit,
-  LanguageDescription,
-} from "@codemirror/language";
-import { GFM } from "@lezer/markdown";
-import { javascript } from "@codemirror/lang-javascript";
-import { html } from "@codemirror/lang-html";
-import { css } from "@codemirror/lang-css";
+import { Extension, InputRule } from "@tiptap/core";
+import { EditorContent, useEditor, type Editor as TiptapEditor } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import CodeBlock from "@tiptap/extension-code-block";
+import CodeBlockLowlight from "@tiptap/extension-code-block-lowlight";
+import Link from "@tiptap/extension-link";
+import Image from "@tiptap/extension-image";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
+import { Table } from "@tiptap/extension-table";
+import TableRow from "@tiptap/extension-table-row";
+import TableHeader from "@tiptap/extension-table-header";
+import TableCell from "@tiptap/extension-table-cell";
+import { Markdown } from "@tiptap/markdown";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { evaluate } from "mathjs";
+import { common, createLowlight } from "lowlight";
 import { putAttachment, type Attachment } from "../db";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 
-// URL 正则表达式
-const urlRegex = /https?:\/\/[^\s<>"'()\[\]]+/g;
-
-const codeFenceLanguages: readonly LanguageDescription[] = [
-  LanguageDescription.of({
-    name: "JavaScript",
-    alias: ["js", "javascript"],
-    support: javascript(),
-  }),
-  LanguageDescription.of({
-    name: "TypeScript",
-    alias: ["ts", "typescript"],
-    support: javascript({ typescript: true }),
-  }),
-  LanguageDescription.of({
-    name: "JSX",
-    alias: ["jsx"],
-    support: javascript({ jsx: true }),
-  }),
-  LanguageDescription.of({
-    name: "TSX",
-    alias: ["tsx"],
-    support: javascript({ typescript: true, jsx: true }),
-  }),
-  LanguageDescription.of({
-    name: "HTML",
-    alias: ["html", "htm"],
-    support: html(),
-  }),
-  LanguageDescription.of({ name: "CSS", alias: ["css"], support: css() }),
-];
-
-const WRAP_SYMBOL_SET = new Set(["-", "*", "/", "_", "~", "`", "|"]);
-
-// 链接装饰器样式
-const linkMark = Decoration.mark({ class: "cm-link-url" });
-
-type FlashHighlightRange = { from: number; to: number };
-
-const setFlashHighlightEffect = StateEffect.define<FlashHighlightRange>();
-const clearFlashHighlightEffect = StateEffect.define<null>();
-const flashHighlightMark = Decoration.mark({ class: "cm-flash-highlight" });
-
-const flashHighlightField = StateField.define<DecorationSet>({
-  create() {
-    return Decoration.none;
-  },
-  update(decorations, transaction) {
-    let mapped = decorations.map(transaction.changes);
-
-    for (const effect of transaction.effects) {
-      if (effect.is(setFlashHighlightEffect)) {
-        const { from, to } = effect.value;
-        if (to > from) {
-          mapped = Decoration.set([flashHighlightMark.range(from, to)]);
-        }
-      } else if (effect.is(clearFlashHighlightEffect)) {
-        mapped = Decoration.none;
-      }
-    }
-
-    return mapped;
-  },
-  provide: (field) => EditorView.decorations.from(field),
-});
-
-// 链接匹配装饰器
-const linkDecorator = new MatchDecorator({
-  regexp: urlRegex,
-  decoration: linkMark,
-});
-
-// 链接高亮插件
-const linkPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-    constructor(view: EditorView) {
-      this.decorations = linkDecorator.createDeco(view);
-    }
-    update(update: {
-      docChanged: boolean;
-      viewportChanged: boolean;
-      view: EditorView;
-    }) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = linkDecorator.createDeco(update.view);
-      }
-    }
-  },
-  {
-    decorations: (v) => v.decorations,
-  },
-);
-
-// Ctrl+Click 打开链接的事件处理
-const linkClickHandler = EditorView.domEventHandlers({
-  click: (event: MouseEvent, view: EditorView) => {
-    if (!event.ctrlKey) return false;
-
-    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
-    if (pos === null) return false;
-
-    const line = view.state.doc.lineAt(pos);
-    const lineText = line.text;
-
-    // 查找点击位置所在的 URL
-    let match: RegExpExecArray | null;
-    const regex = new RegExp(urlRegex.source, "g");
-    while ((match = regex.exec(lineText)) !== null) {
-      const urlStart = line.from + match.index;
-      const urlEnd = urlStart + match[0].length;
-      if (pos >= urlStart && pos <= urlEnd) {
-        // 在默认浏览器中打开链接
-        window.electronAPI?.openExternalUrl(match[0]);
-        event.preventDefault();
-        return true;
-      }
-    }
-    return false;
-  },
-});
-
-// 图片正则表达式：匹配 ![alt](litepad://images/...) 或 ![alt](asset://...)（兼容旧格式）
-const imageRegex =
-  /!\[([^\]]*)\]\(((?:litepad:\/\/images\/|asset:\/\/)[^)]+)\)/g;
-
-// 图片预览 Widget
-class ImageWidget extends WidgetType {
-  constructor(
-    readonly src: string,
-    readonly alt: string,
-  ) {
-    super();
-  }
-
-  toDOM(_view: EditorView) {
-    const container = document.createElement("div");
-    container.className = "cm-image-preview";
-    const img = document.createElement("img");
-    img.src = this.src;
-    img.alt = this.alt;
-    img.style.maxWidth = "300px";
-    img.style.maxHeight = "200px";
-    img.style.borderRadius = "4px";
-    img.style.marginTop = "4px";
-    img.style.marginBottom = "4px";
-    img.onerror = () => {
-      container.style.display = "none";
-    };
-    container.appendChild(img);
-    return container;
-  }
-
-  eq(other: ImageWidget) {
-    return this.src === other.src;
-  }
-}
-
-// 图片预览插件
-const imagePreviewPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-
-    constructor(view: EditorView) {
-      this.decorations = this.buildDecorations(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = this.buildDecorations(update.view);
-      }
-    }
-
-    buildDecorations(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      const doc = view.state.doc;
-
-      for (let i = 1; i <= doc.lines; i++) {
-        const line = doc.line(i);
-        const regex = new RegExp(imageRegex.source, "g");
-        let match: RegExpExecArray | null;
-
-        while ((match = regex.exec(line.text)) !== null) {
-          const alt = match[1];
-          const src = match[2];
-          const widget = Decoration.widget({
-            widget: new ImageWidget(src, alt),
-            side: 1,
-          });
-          builder.add(line.to, line.to, widget);
-        }
-      }
-
-      return builder.finish();
-    }
-  },
-  {
-    decorations: (v) => v.decorations,
-  },
-);
-
-// 任务列表复选框：匹配 - [ ] / - [x]（GFM）
-const taskListRegex = /^([\t ]*[-*+]\s+)\[([ xX])\]/;
-
-class TaskCheckboxWidget extends WidgetType {
-  constructor(
-    readonly checked: boolean,
-    readonly togglePos: number,
-  ) {
-    super();
-  }
-
-  toDOM(view: EditorView) {
-    const wrapper = document.createElement("span");
-    wrapper.className = "cm-task-checkbox";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = this.checked;
-    checkbox.tabIndex = -1;
-
-    checkbox.addEventListener("mousedown", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-
-    checkbox.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const current = view.state.doc.sliceString(
-        this.togglePos,
-        this.togglePos + 1,
-      );
-      const isChecked = current.toLowerCase() === "x";
-      view.dispatch({
-        changes: {
-          from: this.togglePos,
-          to: this.togglePos + 1,
-          insert: isChecked ? " " : "x",
-        },
-      });
-    });
-
-    wrapper.appendChild(checkbox);
-    return wrapper;
-  }
-
-  eq(other: TaskCheckboxWidget) {
-    return other.checked === this.checked && other.togglePos === this.togglePos;
-  }
-
-  ignoreEvent() {
-    return true;
-  }
-}
-
-const taskListPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-
-    constructor(view: EditorView) {
-      this.decorations = this.buildDecorations(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = this.buildDecorations(update.view);
-      }
-    }
-
-    buildDecorations(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      const doc = view.state.doc;
-
-      let inFence = false;
-      for (let i = 1; i <= doc.lines; i++) {
-        const line = doc.line(i);
-        const lineText = line.text;
-
-        if (lineText.trimStart().startsWith("```")) {
-          inFence = !inFence;
-          continue;
-        }
-        if (inFence) continue;
-
-        const match = taskListRegex.exec(lineText);
-        if (!match) continue;
-
-        const checked = match[2].toLowerCase() === "x";
-        const bracketFrom = line.from + match[1].length;
-        const bracketTo = bracketFrom + 3;
-        builder.add(
-          bracketFrom,
-          bracketTo,
-          Decoration.replace({
-            widget: new TaskCheckboxWidget(checked, bracketFrom + 1),
-          }),
-        );
-      }
-
-      return builder.finish();
-    }
-  },
-  {
-    decorations: (v) => v.decorations,
-  },
-);
-
-const tableSeparatorRegex = /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/;
-
-const tableBorderPlugin = ViewPlugin.fromClass(
-  class {
-    decorations: DecorationSet;
-
-    constructor(view: EditorView) {
-      this.decorations = this.buildDecorations(view);
-    }
-
-    update(update: ViewUpdate) {
-      if (update.docChanged || update.viewportChanged) {
-        this.decorations = this.buildDecorations(update.view);
-      }
-    }
-
-    buildDecorations(view: EditorView): DecorationSet {
-      const builder = new RangeSetBuilder<Decoration>();
-      const doc = view.state.doc;
-
-      const insideFence = new Array<boolean>(doc.lines + 1).fill(false);
-      let inFence = false;
-      for (let lineNo = 1; lineNo <= doc.lines; lineNo++) {
-        const text = doc.line(lineNo).text;
-        if (text.trimStart().startsWith("```")) {
-          inFence = !inFence;
-          continue;
-        }
-        insideFence[lineNo] = inFence;
-      }
-
-      const tableLines = new Map<number, "sep" | "row">();
-
-      for (let lineNo = 1; lineNo <= doc.lines; lineNo++) {
-        if (insideFence[lineNo]) continue;
-
-        const lineText = doc.line(lineNo).text;
-        if (!tableSeparatorRegex.test(lineText)) continue;
-
-        tableLines.set(lineNo, "sep");
-
-        const headerLineNo = lineNo - 1;
-        if (headerLineNo >= 1 && !insideFence[headerLineNo]) {
-          const headerText = doc.line(headerLineNo).text;
-          if (headerText.includes("|")) {
-            tableLines.set(headerLineNo, "row");
-          }
-        }
-
-        for (
-          let bodyLineNo = lineNo + 1;
-          bodyLineNo <= doc.lines;
-          bodyLineNo++
-        ) {
-          if (insideFence[bodyLineNo]) break;
-
-          const bodyText = doc.line(bodyLineNo).text;
-          if (bodyText.trim().length === 0) break;
-          if (!bodyText.includes("|")) break;
-          if (tableSeparatorRegex.test(bodyText)) break;
-
-          tableLines.set(bodyLineNo, "row");
-        }
-      }
-
-      const sortedLineNos = Array.from(tableLines.keys()).sort((a, b) => a - b);
-      for (const lineNo of sortedLineNos) {
-        const kind = tableLines.get(lineNo);
-        if (!kind) continue;
-
-        const line = doc.line(lineNo);
-        builder.add(
-          line.from,
-          line.from,
-          Decoration.line({
-            class: kind === "sep" ? "cm-table-sep" : "cm-table-row",
-          }),
-        );
-
-        const text = line.text;
-        for (let i = 0; i < text.length; i++) {
-          if (text[i] !== "|") continue;
-          builder.add(
-            line.from + i,
-            line.from + i + 1,
-            Decoration.mark({ class: "cm-table-pipe" }),
-          );
-        }
-      }
-
-      return builder.finish();
-    }
-  },
-  {
-    decorations: (v) => v.decorations,
-  },
-);
-
-// 处理图片文件
-const processImageFile = async (file: File, view: EditorView) => {
-  if (!file.type.startsWith("image/")) return;
-
-  try {
-    const buffer = await file.arrayBuffer();
-    const ext = "." + (file.type.split("/")[1] || "png").replace("jpeg", "jpg");
-    const result = await window.electronAPI?.saveImage(buffer, ext);
-
-    if (result) {
-      // 保存附件元数据到 IndexedDB
-      const attachment: Attachment = {
-        hash: result.hash,
-        filename: file.name,
-        mimeType: file.type,
-        size: result.size,
-        ext: result.ext,
-        localPath: "", // 由 Tauri 管理
-        syncStatus: "pending",
-        createdAt: Date.now(),
-        syncedAt: null,
-      };
-      await putAttachment(attachment);
-
-      // 插入 Markdown 图片引用
-      const pos = view.state.selection.main.head;
-      const imageMarkdown = `![${file.name}](${result.url})`;
-      view.dispatch({
-        changes: { from: pos, insert: imageMarkdown + "\n" },
-        selection: { anchor: pos + imageMarkdown.length + 1 },
-      });
-    }
-  } catch (error) {
-    console.error("图片保存失败:", error);
-  }
+const urlRegex = /https?:\/\/[^\s<>"'()\[\]]+/;
+const lowlight = createLowlight(common);
+const todayMacroRegex = /(?:^|\s)(@today)$/i;
+const litepadImageUrlRegex = /^litepad:\/\/images\/([a-f0-9]{64})(\.[a-z0-9]+)$/i;
+const litepadImageMarkdownWithTitleRegex =
+  /!\[([^\]]*)\]\((litepad:\/\/images\/[a-f0-9]{64}\.[a-z0-9]+)\s+(?:"[^"]*"|'[^']*')\)/gi;
+const litepadImageHtmlTagRegex =
+  /<img\b[^>]*\bsrc=(["'])(litepad:\/\/images\/[a-f0-9]{64}\.[a-z0-9]+)\1[^>]*>/gi;
+const imageMimeToExt: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/jpg": ".jpg",
+  "image/webp": ".webp",
+  "image/gif": ".gif",
+  "image/svg+xml": ".svg",
+  "image/bmp": ".bmp",
+  "image/x-icon": ".ico",
+  "image/vnd.microsoft.icon": ".ico",
+  "image/tiff": ".tif",
 };
 
-// 图片拖放和粘贴事件处理
-const imageHandler = EditorView.domEventHandlers({
-  drop: (event: DragEvent, view: EditorView) => {
-    const files = event.dataTransfer?.files;
-    if (!files || files.length === 0) return false;
-
-    const imageFiles = Array.from(files).filter((f) =>
-      f.type.startsWith("image/"),
-    );
-    if (imageFiles.length === 0) return false;
-
-    event.preventDefault();
-    imageFiles.forEach((file) => processImageFile(file, view));
-    return true;
-  },
-  paste: (event: ClipboardEvent, view: EditorView) => {
-    const items = event.clipboardData?.items;
-    if (!items) return false;
-
-    for (const item of items) {
-      if (item.type.startsWith("image/")) {
-        const file = item.getAsFile();
-        if (file) {
-          event.preventDefault();
-          processImageFile(file, view);
-          return true;
-        }
-      }
-    }
-    return false;
-  },
-});
+interface JumpTarget {
+  query: string;
+  occurrence: number;
+  matchLength: number;
+  snippet?: string;
+  line?: number;
+  column?: number;
+  token: number;
+}
 
 interface EditorProps {
   content: string;
@@ -532,8 +69,607 @@ interface EditorProps {
   tabIndentText?: string;
   enableCodeBlockHighlight?: boolean;
   enableQuickSymbolInput?: boolean;
-  jumpTo?: { from: number; to: number; token: number } | null;
+  jumpTo?: JumpTarget | null;
   onJumpApplied?: (token: number) => void;
+}
+
+type FlashRange = { from: number; to: number };
+
+const jumpFlashPluginKey = new PluginKey<FlashRange | null>("litepad-jump-flash");
+
+const JumpFlashExtension = Extension.create({
+  name: "litepadJumpFlash",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin<FlashRange | null>({
+        key: jumpFlashPluginKey,
+        state: {
+          init: () => null,
+          apply(tr, value) {
+            const meta = tr.getMeta(jumpFlashPluginKey) as
+              | FlashRange
+              | null
+              | undefined;
+            let next = meta !== undefined ? meta : value;
+
+            if (next && tr.docChanged) {
+              const mappedFrom = tr.mapping.map(next.from);
+              const mappedTo = tr.mapping.map(next.to);
+              next = mappedTo > mappedFrom ? { from: mappedFrom, to: mappedTo } : null;
+            }
+
+            return next;
+          },
+        },
+        props: {
+          decorations(state) {
+            const range = jumpFlashPluginKey.getState(state);
+            if (!range || range.to <= range.from) return null;
+            return DecorationSet.create(state.doc, [
+              Decoration.inline(range.from, range.to, {
+                class: "pm-flash-highlight",
+              }),
+            ]);
+          },
+        },
+      }),
+    ];
+  },
+});
+
+function normalizeMarkdown(markdown: string): string {
+  const normalized = markdown.replace(/\r\n/g, "\n").replace(/\n+$/g, "");
+  const imageContractNormalized = normalized.replace(
+    litepadImageHtmlTagRegex,
+    (fullTag, _quote, src) => {
+      const altMatch = fullTag.match(/\balt=(["'])(.*?)\1/i);
+      const alt = altMatch?.[2] ?? "";
+      return `![${alt}](${src})`;
+    },
+  );
+  return imageContractNormalized.replace(
+    litepadImageMarkdownWithTitleRegex,
+    (_full, alt, src) => `![${alt}](${src})`,
+  );
+}
+
+function extensionFromFilename(filename: string): string | null {
+  const match = filename.toLowerCase().match(/(\.[a-z0-9]+)$/);
+  return match?.[1] ?? null;
+}
+
+function extensionFromUrl(url: string): string | null {
+  try {
+    const parsed = new URL(url);
+    const lastSegment = parsed.pathname.split("/").pop() ?? "";
+    return extensionFromFilename(lastSegment);
+  } catch {
+    return null;
+  }
+}
+
+function resolveImageExtension(mimeType: string, filename?: string, sourceUrl?: string): string {
+  const lowerMime = mimeType.toLowerCase();
+  const fromMime = imageMimeToExt[lowerMime];
+  if (fromMime) return fromMime;
+
+  if (filename) {
+    const fromFilename = extensionFromFilename(filename);
+    if (fromFilename) return fromFilename;
+  }
+
+  if (sourceUrl) {
+    const fromUrl = extensionFromUrl(sourceUrl);
+    if (fromUrl) return fromUrl;
+  }
+
+  return ".png";
+}
+
+function inferFilenameFromUrl(url: string, fallbackName: string): string {
+  try {
+    const parsed = new URL(url);
+    const lastSegment = parsed.pathname.split("/").pop() ?? "";
+    const decoded = decodeURIComponent(lastSegment).trim();
+    if (decoded) return decoded;
+  } catch {
+    // Ignore invalid URL parsing and fallback.
+  }
+  return fallbackName;
+}
+
+type PastedHtmlImage = {
+  src: string;
+  alt: string;
+};
+
+function extractHtmlImages(html: string): PastedHtmlImage[] {
+  if (!html || !html.includes("<img")) return [];
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    return Array.from(doc.querySelectorAll("img[src]"))
+      .map((img) => ({
+        src: (img.getAttribute("src") ?? "").trim(),
+        alt: (img.getAttribute("alt") ?? "").trim(),
+      }))
+      .filter((img) => img.src.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function parseDataUrlImage(src: string): { mimeType: string; bytes: Uint8Array } | null {
+  const match = src.match(/^data:(image\/[a-z0-9.+-]+);base64,([a-z0-9+/=]+)$/i);
+  if (!match) return null;
+
+  try {
+    const decoded = atob(match[2]);
+    const bytes = new Uint8Array(decoded.length);
+    for (let i = 0; i < decoded.length; i += 1) {
+      bytes[i] = decoded.charCodeAt(i);
+    }
+    return {
+      mimeType: match[1].toLowerCase(),
+      bytes,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function findDeleteBoundary(
+  text: string,
+  pos: number,
+  direction: "backward" | "forward",
+  wordSegmenter: Intl.Segmenter | null,
+): number {
+  if (direction === "backward") {
+    if (pos <= 0) return 0;
+    let cursor = pos;
+    while (cursor > 0 && /\s/.test(text[cursor - 1])) cursor -= 1;
+    if (cursor !== pos) return cursor;
+
+    if (wordSegmenter) {
+      const segments = Array.from(wordSegmenter.segment(text));
+      let previousSegmentStart = 0;
+      for (const segment of segments) {
+        const start = segment.index;
+        const end = start + segment.segment.length;
+        if (end >= cursor) {
+          if (start < cursor && segment.isWordLike) return start;
+          return previousSegmentStart;
+        }
+        previousSegmentStart = start;
+      }
+    }
+
+    cursor = pos;
+    while (cursor > 0 && /[a-z0-9_]/i.test(text[cursor - 1])) cursor -= 1;
+    if (cursor !== pos) return cursor;
+
+    cursor = pos;
+    while (cursor > 0 && !/\s/.test(text[cursor - 1])) cursor -= 1;
+    return cursor;
+  }
+
+  if (pos >= text.length) return text.length;
+  let cursor = pos;
+  while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+  if (cursor !== pos) return cursor;
+
+  if (wordSegmenter) {
+    const segments = Array.from(wordSegmenter.segment(text));
+    for (const segment of segments) {
+      const start = segment.index;
+      const end = start + segment.segment.length;
+
+      if (start > cursor) return end;
+      if (start <= cursor && end > cursor && segment.isWordLike) return end;
+    }
+  }
+
+  cursor = pos;
+  while (cursor < text.length && /[a-z0-9_]/i.test(text[cursor])) cursor += 1;
+  if (cursor !== pos) return cursor;
+
+  cursor = pos;
+  while (cursor < text.length && !/\s/.test(text[cursor])) cursor += 1;
+  return cursor;
+}
+
+function buildListIndentExtension(tabIndentText: string) {
+  const outdentChars = tabIndentText === "\t" ? 1 : Math.max(1, tabIndentText.length);
+
+  return Extension.create({
+    name: "litepadListIndent",
+    addKeyboardShortcuts() {
+      return {
+        Tab: () => {
+          const editor = this.editor;
+          if (
+            editor.commands.sinkListItem("listItem") ||
+            editor.commands.sinkListItem("taskItem")
+          ) {
+            return true;
+          }
+          editor.commands.insertContent(tabIndentText);
+          return true;
+        },
+        "Shift-Tab": () => {
+          const editor = this.editor;
+          if (
+            editor.commands.liftListItem("listItem") ||
+            editor.commands.liftListItem("taskItem")
+          ) {
+            return true;
+          }
+
+          const { state, view } = editor;
+          const { from, to, empty } = state.selection;
+          if (!empty || from !== to) return true;
+
+          const $from = state.selection.$from;
+          const lineStart = $from.start();
+          const beforeCursor = $from.parent.textBetween(0, $from.parentOffset, "", "");
+          const leading = beforeCursor.match(/^[\t ]*/)?.[0] ?? "";
+          if (leading.length === 0) return true;
+
+          const removeLength = leading.endsWith("\t")
+            ? 1
+            : Math.min(outdentChars, leading.length);
+          const deleteFrom = lineStart + leading.length - removeLength;
+          view.dispatch(state.tr.delete(deleteFrom, deleteFrom + removeLength));
+          return true;
+        },
+      };
+    },
+  });
+}
+
+function buildWordDeleteExtension() {
+  const wordSegmenter =
+    typeof Intl !== "undefined" && "Segmenter" in Intl
+      ? new Intl.Segmenter("zh-Hans", { granularity: "word" })
+      : null;
+
+  return Extension.create({
+    name: "litepadWordDelete",
+    addKeyboardShortcuts() {
+      return {
+        "Ctrl-Backspace": () => {
+          const { state, view } = this.editor;
+          const { from, to, empty, $from } = state.selection;
+          if (!empty) {
+            view.dispatch(state.tr.delete(from, to));
+            return true;
+          }
+
+          const blockText = $from.parent.textBetween(0, $from.parent.content.size, "", "");
+          const localPos = $from.parentOffset;
+          const boundary = findDeleteBoundary(
+            blockText,
+            localPos,
+            "backward",
+            wordSegmenter,
+          );
+          if (boundary === localPos) return true;
+
+          const absoluteFrom = $from.start() + boundary;
+          const absoluteTo = $from.start() + localPos;
+          view.dispatch(state.tr.delete(absoluteFrom, absoluteTo));
+          return true;
+        },
+        "Ctrl-Delete": () => {
+          const { state, view } = this.editor;
+          const { from, to, empty, $from } = state.selection;
+          if (!empty) {
+            view.dispatch(state.tr.delete(from, to));
+            return true;
+          }
+
+          const blockText = $from.parent.textBetween(0, $from.parent.content.size, "", "");
+          const localPos = $from.parentOffset;
+          const boundary = findDeleteBoundary(
+            blockText,
+            localPos,
+            "forward",
+            wordSegmenter,
+          );
+          if (boundary === localPos) return true;
+
+          const absoluteFrom = $from.start() + localPos;
+          const absoluteTo = $from.start() + boundary;
+          view.dispatch(state.tr.delete(absoluteFrom, absoluteTo));
+          return true;
+        },
+      };
+    },
+  });
+}
+
+const CalculateExtension = Extension.create({
+  name: "litepadCalculate",
+  addKeyboardShortcuts() {
+    const runCalculate = () => {
+      const { state, view } = this.editor;
+      const { empty, $from } = state.selection;
+      if (!empty) return false;
+
+      const lineText = $from.parent.textBetween(0, $from.parent.content.size, "", "");
+      const lastEqualIndex = lineText.lastIndexOf("=");
+      if (lastEqualIndex === -1) return false;
+
+      const expression = lineText.substring(0, lastEqualIndex).trim();
+      if (!expression) return false;
+
+      try {
+        const result = evaluate(expression);
+        const resultStr = result.toString();
+        const afterEqual = lineText.substring(lastEqualIndex + 1);
+        const leadingSpaces = afterEqual.match(/^(\s*)/)?.[1] ?? "";
+
+        const lineStart = $from.start();
+        const replaceFrom = lineStart + lastEqualIndex + 1 + leadingSpaces.length;
+        const replaceTo = lineStart + lineText.length;
+        const tr = state.tr.insertText(resultStr, replaceFrom, replaceTo);
+        view.dispatch(tr);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    return {
+      "Ctrl-Enter": runCalculate,
+      "Mod-Enter": runCalculate,
+    };
+  },
+});
+
+function formatDateMacroValue(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+const TodayMacroExtension = Extension.create({
+  name: "litepadTodayMacro",
+  addInputRules() {
+    return [
+      new InputRule({
+        find: todayMacroRegex,
+        handler: ({ state, range, match }) => {
+          const token = match[1];
+          if (!token) return null;
+
+          const tokenOffset = match[0].lastIndexOf(token);
+          const replaceFrom = range.from + Math.max(0, tokenOffset);
+          const replaceTo = range.to;
+
+          state.tr.insertText(formatDateMacroValue(), replaceFrom, replaceTo);
+          return undefined;
+        },
+      }),
+    ];
+  },
+});
+
+type TextBlockRef = {
+  text: string;
+  startPos: number;
+  startOffset: number;
+  endOffset: number;
+};
+
+function collectTextBlocks(editor: TiptapEditor): TextBlockRef[] {
+  const rawBlocks: Array<{ text: string; startPos: number }> = [];
+  editor.state.doc.descendants((node, pos) => {
+    if (!node.isTextblock) return true;
+    rawBlocks.push({
+      text: node.textContent ?? "",
+      startPos: pos + 1,
+    });
+    return false;
+  });
+
+  if (rawBlocks.length === 0) {
+    return [{ text: "", startPos: 1, startOffset: 0, endOffset: 0 }];
+  }
+
+  let cursor = 0;
+  return rawBlocks.map((block) => {
+    const startOffset = cursor;
+    const endOffset = startOffset + block.text.length;
+    cursor = endOffset + 1;
+    return {
+      text: block.text,
+      startPos: block.startPos,
+      startOffset,
+      endOffset,
+    };
+  });
+}
+
+function flattenBlockText(blocks: TextBlockRef[]): string {
+  return blocks.map((block) => block.text).join("\n");
+}
+
+function findNthOccurrence(text: string, query: string, occurrence: number): number {
+  if (occurrence <= 0 || query.length === 0) return -1;
+  let startIndex = 0;
+  let matchedIndex = -1;
+  for (let i = 0; i < occurrence; i += 1) {
+    matchedIndex = text.indexOf(query, startIndex);
+    if (matchedIndex === -1) return -1;
+    startIndex = matchedIndex + query.length;
+  }
+  return matchedIndex;
+}
+
+function textOffsetToPos(blocks: TextBlockRef[], offset: number): number {
+  const safeOffset = Math.max(0, offset);
+  for (let i = 0; i < blocks.length; i += 1) {
+    const block = blocks[i];
+    if (safeOffset < block.endOffset) {
+      return block.startPos + (safeOffset - block.startOffset);
+    }
+    if (safeOffset === block.endOffset) {
+      if (i < blocks.length - 1) return blocks[i + 1].startPos;
+      return block.startPos + block.text.length;
+    }
+  }
+
+  const last = blocks[blocks.length - 1];
+  return last.startPos + last.text.length;
+}
+
+function resolveJumpRange(editor: TiptapEditor, jumpTo: JumpTarget): FlashRange | null {
+  const query = jumpTo.query.trim();
+  if (!query) return null;
+
+  const blocks = collectTextBlocks(editor);
+  const plainText = flattenBlockText(blocks);
+  const plainLower = plainText.toLowerCase();
+  const queryLower = query.toLowerCase();
+  const matchLength = Math.max(1, jumpTo.matchLength || query.length);
+
+  let fromOffset = findNthOccurrence(plainLower, queryLower, jumpTo.occurrence);
+  if (fromOffset === -1 && jumpTo.snippet) {
+    const snippet = jumpTo.snippet.replace(/\.\.\./g, "").trim().toLowerCase();
+    if (snippet) {
+      const snippetIndex = plainLower.indexOf(snippet);
+      if (snippetIndex !== -1) {
+        const queryInSnippet = snippet.indexOf(queryLower);
+        if (queryInSnippet !== -1) {
+          fromOffset = snippetIndex + queryInSnippet;
+        }
+      }
+    }
+  }
+  if (fromOffset === -1) {
+    fromOffset = plainLower.indexOf(queryLower);
+  }
+  if (fromOffset === -1) return null;
+
+  const toOffset = fromOffset + matchLength;
+  const from = textOffsetToPos(blocks, fromOffset);
+  const to = textOffsetToPos(blocks, toOffset);
+  if (to <= from) return null;
+  return { from, to };
+}
+
+async function processImageFile(file: File, editor: TiptapEditor): Promise<void> {
+  const mimeType = file.type || "image/png";
+  if (!mimeType.startsWith("image/")) return;
+
+  try {
+    await persistAndInsertImage({
+      editor,
+      buffer: await file.arrayBuffer(),
+      mimeType,
+      filename: file.name || "image",
+      sourceUrl: "",
+      alt: file.name || "image",
+    });
+  } catch (error) {
+    console.error("图片保存失败:", error);
+  }
+}
+
+type PersistedImageInput = {
+  editor: TiptapEditor;
+  buffer: ArrayBuffer;
+  mimeType: string;
+  filename: string;
+  sourceUrl: string;
+  alt: string;
+};
+
+async function persistAndInsertImage(input: PersistedImageInput): Promise<boolean> {
+  const ext = resolveImageExtension(input.mimeType, input.filename, input.sourceUrl);
+  const result = await window.electronAPI?.saveImage(input.buffer, ext);
+  if (!result) return false;
+
+  const attachment: Attachment = {
+    hash: result.hash,
+    filename: input.filename,
+    mimeType: input.mimeType,
+    size: result.size,
+    ext: result.ext,
+    localPath: "",
+    syncStatus: "pending",
+    createdAt: Date.now(),
+    syncedAt: null,
+  };
+  await putAttachment(attachment);
+
+  input.editor
+    .chain()
+    .focus()
+    .setImage({
+      src: result.url,
+      alt: input.alt || input.filename || "image",
+    })
+    .run();
+  input.editor.commands.insertContent("\n");
+  return true;
+}
+
+async function processHtmlImageSource(
+  image: PastedHtmlImage,
+  index: number,
+  editor: TiptapEditor,
+): Promise<void> {
+  const alt = image.alt || `image-${index + 1}`;
+  const src = image.src;
+
+  if (litepadImageUrlRegex.test(src)) {
+    editor.chain().focus().setImage({ src, alt }).run();
+    editor.commands.insertContent("\n");
+    return;
+  }
+
+  if (src.startsWith("data:image/")) {
+    const parsed = parseDataUrlImage(src);
+    if (!parsed) return;
+    const ext = resolveImageExtension(parsed.mimeType, `pasted-image-${index + 1}`);
+    const saved = await persistAndInsertImage({
+      editor,
+      buffer: parsed.bytes.buffer,
+      mimeType: parsed.mimeType,
+      filename: `pasted-image-${index + 1}${ext}`,
+      sourceUrl: "",
+      alt,
+    });
+    if (saved) return;
+  }
+
+  if (/^https?:\/\//i.test(src)) {
+    try {
+      const response = await fetch(src);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const blob = await response.blob();
+      const blobMime = blob.type || "image/png";
+      if (!blobMime.startsWith("image/")) throw new Error("Non-image response");
+
+      const filename = inferFilenameFromUrl(src, `pasted-image-${index + 1}`);
+      const saved = await persistAndInsertImage({
+        editor,
+        buffer: await blob.arrayBuffer(),
+        mimeType: blobMime,
+        filename,
+        sourceUrl: src,
+        alt,
+      });
+      if (saved) return;
+    } catch (error) {
+      console.warn("外链图片下载失败，保留原始链接:", error);
+    }
+  }
+
+  editor.chain().focus().setImage({ src, alt }).run();
+  editor.commands.insertContent("\n");
 }
 
 export function Editor({
@@ -550,20 +686,233 @@ export function Editor({
   onJumpApplied,
 }: EditorProps) {
   const { t } = useTranslation();
-  const editorRef = useRef<HTMLDivElement>(null);
-  const viewRef = useRef<EditorView | null>(null);
-  const isExternalUpdate = useRef(false);
-  const isAutoRenumbering = useRef(false);
-  const isImeComposingRef = useRef(false);
-  const lastCompositionEndAtRef = useRef(0);
-  const lastEmittedContentRef = useRef(content);
-  const flashTimeoutRef = useRef<number | null>(null);
-  const flashTokenRef = useRef(0);
   const [editorContextMenu, setEditorContextMenu] = useState({
     visible: false,
     x: 0,
     y: 0,
   });
+  const editorRef = useRef<TiptapEditor | null>(null);
+  const isExternalUpdateRef = useRef(false);
+  const isImeComposingRef = useRef(false);
+  const flashTimeoutRef = useRef<number | null>(null);
+  const flashTokenRef = useRef(0);
+  const lastEmittedMarkdownRef = useRef(normalizeMarkdown(content));
+  const onChangeRef = useRef(onChange);
+  const onActivityRef = useRef(onActivity);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    onActivityRef.current = onActivity;
+  }, [onActivity]);
+
+  const listIndentExtension = useMemo(
+    () => buildListIndentExtension(tabIndentText),
+    [tabIndentText],
+  );
+  const wordDeleteExtension = useMemo(() => buildWordDeleteExtension(), []);
+  const codeBlockExtension = useMemo(
+    () =>
+      enableCodeBlockHighlight
+        ? CodeBlockLowlight.configure({
+            lowlight,
+            defaultLanguage: null,
+            HTMLAttributes: {
+              class: "code-block-highlight hljs",
+            },
+          })
+        : CodeBlock.configure({
+            HTMLAttributes: {
+              class: "code-block-plain",
+            },
+          }),
+    [enableCodeBlockHighlight],
+  );
+
+  const extensions = useMemo(
+    () => [
+      StarterKit.configure({
+        codeBlock: false,
+        link: false,
+      }),
+      codeBlockExtension,
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        linkOnPaste: true,
+      }),
+      Image,
+      TaskList,
+      TaskItem.configure({ nested: true }),
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
+      Markdown.configure({
+        html: false,
+      }),
+      CalculateExtension,
+      TodayMacroExtension,
+      listIndentExtension,
+      wordDeleteExtension,
+      JumpFlashExtension,
+    ],
+    [codeBlockExtension, listIndentExtension, wordDeleteExtension],
+  );
+
+  const editor = useEditor({
+    extensions,
+    content,
+    contentType: "markdown",
+    autofocus: autoFocus,
+    immediatelyRender: false,
+    // Markdown quick-symbol behavior follows TipTap input rules as the baseline contract.
+    enableInputRules: enableQuickSymbolInput,
+    editorProps: {
+      attributes: {
+        class: "litepad-prosemirror",
+      },
+      handleClick: (_view, _pos, event) => {
+        const target = event.target as HTMLElement | null;
+        if (!target) return false;
+        const anchor = target.closest("a[href]") as HTMLAnchorElement | null;
+        if (!anchor) return false;
+        if (!(event.ctrlKey || event.metaKey)) return false;
+
+        const href = anchor.getAttribute("href");
+        if (!href || !urlRegex.test(href)) return false;
+        window.electronAPI?.openExternalUrl(href);
+        event.preventDefault();
+        return true;
+      },
+      handleDOMEvents: {
+        compositionstart: () => {
+          isImeComposingRef.current = true;
+          return false;
+        },
+        compositionend: () => {
+          isImeComposingRef.current = false;
+          queueMicrotask(() => {
+            const current = editorRef.current;
+            if (!current || isExternalUpdateRef.current) return;
+            const markdown = normalizeMarkdown(current.getMarkdown());
+            if (markdown === lastEmittedMarkdownRef.current) return;
+            lastEmittedMarkdownRef.current = markdown;
+            onChangeRef.current(markdown);
+            onActivityRef.current?.("typing");
+          });
+          return false;
+        },
+        drop: (_view, event) => {
+          const current = editorRef.current;
+          if (!current) return false;
+
+          const files = event.dataTransfer?.files;
+          if (!files || files.length === 0) return false;
+          const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
+          if (imageFiles.length === 0) return false;
+
+          event.preventDefault();
+          imageFiles.forEach((file) => {
+            void processImageFile(file, current);
+          });
+          return true;
+        },
+        paste: (_view, event) => {
+          const current = editorRef.current;
+          if (!current) return false;
+
+          const items = event.clipboardData?.items;
+          if (items) {
+            for (const item of items) {
+              if (!item.type.startsWith("image/")) continue;
+              const file = item.getAsFile();
+              if (!file) continue;
+              event.preventDefault();
+              void processImageFile(file, current);
+              return true;
+            }
+          }
+
+          const html = event.clipboardData?.getData("text/html") ?? "";
+          const htmlImages = extractHtmlImages(html);
+          if (htmlImages.length > 0) {
+            event.preventDefault();
+            htmlImages.forEach((image, index) => {
+              void processHtmlImageSource(image, index, current);
+            });
+            return true;
+          }
+
+          return false;
+        },
+      },
+    },
+    onUpdate: ({ editor: current }) => {
+      if (isExternalUpdateRef.current || isImeComposingRef.current) return;
+      const markdown = normalizeMarkdown(current.getMarkdown());
+      if (markdown === lastEmittedMarkdownRef.current) return;
+      lastEmittedMarkdownRef.current = markdown;
+      onChangeRef.current(markdown);
+      onActivityRef.current?.("typing");
+    },
+  });
+
+  useEffect(() => {
+    editorRef.current = editor ?? null;
+  }, [editor]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const normalizedIncoming = normalizeMarkdown(content);
+    if (normalizedIncoming === lastEmittedMarkdownRef.current) return;
+    if (editor.isFocused || isImeComposingRef.current) return;
+
+    isExternalUpdateRef.current = true;
+    editor.commands.setContent(content, { contentType: "markdown" });
+    isExternalUpdateRef.current = false;
+    lastEmittedMarkdownRef.current = normalizedIncoming;
+  }, [content, editor]);
+
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current !== null) {
+        window.clearTimeout(flashTimeoutRef.current);
+        flashTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editor || !jumpTo) return;
+
+    const range = resolveJumpRange(editor, jumpTo);
+    flashTokenRef.current = jumpTo.token;
+
+    if (flashTimeoutRef.current !== null) {
+      window.clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = null;
+    }
+
+    if (!range) {
+      onJumpApplied?.(jumpTo.token);
+      return;
+    }
+
+    editor.chain().focus().setTextSelection(range).run();
+    editor.view.dispatch(editor.state.tr.setMeta(jumpFlashPluginKey, range));
+
+    flashTimeoutRef.current = window.setTimeout(() => {
+      if (flashTokenRef.current !== jumpTo.token) return;
+      const current = editorRef.current;
+      if (!current) return;
+      current.view.dispatch(current.state.tr.setMeta(jumpFlashPluginKey, null));
+    }, 1000);
+
+    onJumpApplied?.(jumpTo.token);
+  }, [editor, jumpTo?.token, onJumpApplied]);
 
   const closeEditorContextMenu = useCallback(() => {
     setEditorContextMenu((prev) => ({ ...prev, visible: false }));
@@ -582,18 +931,18 @@ export function Editor({
   );
 
   const focusEditor = useCallback(() => {
-    const view = viewRef.current;
-    if (!view) return null;
-    view.focus();
-    return view;
+    const current = editorRef.current;
+    if (!current) return null;
+    current.commands.focus();
+    return current;
   }, []);
 
   const copySelection = useCallback(async () => {
-    const view = focusEditor();
-    if (!view) return;
-    const { from, to, empty } = view.state.selection.main;
+    const current = focusEditor();
+    if (!current) return;
+    const { from, to, empty } = current.state.selection;
     if (empty) return;
-    const selected = view.state.sliceDoc(from, to);
+    const selected = current.state.doc.textBetween(from, to, "\n", "\n");
     try {
       await navigator.clipboard.writeText(selected);
     } catch {
@@ -602,44 +951,42 @@ export function Editor({
   }, [focusEditor]);
 
   const cutSelection = useCallback(async () => {
-    const view = focusEditor();
-    if (!view) return;
-    const { from, to, empty } = view.state.selection.main;
+    const current = focusEditor();
+    if (!current) return;
+    const { from, to, empty } = current.state.selection;
     if (empty) return;
-    const selected = view.state.sliceDoc(from, to);
+    const selected = current.state.doc.textBetween(from, to, "\n", "\n");
     try {
       await navigator.clipboard.writeText(selected);
-      view.dispatch({
-        changes: { from, to, insert: "" },
-        selection: { anchor: from },
-      });
+      current.view.dispatch(current.state.tr.delete(from, to));
     } catch {
       document.execCommand("cut");
     }
   }, [focusEditor]);
 
   const pasteSelection = useCallback(async () => {
-    const view = focusEditor();
-    if (!view) return;
+    const current = focusEditor();
+    if (!current) return;
     try {
       const text = await navigator.clipboard.readText();
       if (!text) return;
-      const { from, to } = view.state.selection.main;
-      view.dispatch({
-        changes: { from, to, insert: text },
-        selection: { anchor: from + text.length },
-      });
+      current.commands.insertContent(text);
     } catch {
       document.execCommand("paste");
     }
   }, [focusEditor]);
 
   const selectAll = useCallback(() => {
-    const view = focusEditor();
-    if (!view) return;
-    view.dispatch({
-      selection: { anchor: 0, head: view.state.doc.length },
-    });
+    const current = focusEditor();
+    if (!current) return;
+    current
+      .chain()
+      .focus()
+      .setTextSelection({
+        from: 1,
+        to: Math.max(1, current.state.doc.content.size),
+      })
+      .run();
   }, [focusEditor]);
 
   const editorContextMenuItems = useMemo<MenuItem[]>(
@@ -647,17 +994,13 @@ export function Editor({
       {
         label: t("editorMenu.undo"),
         onClick: () => {
-          const view = focusEditor();
-          if (!view) return;
-          undo(view);
+          focusEditor()?.commands.undo();
         },
       },
       {
         label: t("editorMenu.redo"),
         onClick: () => {
-          const view = focusEditor();
-          if (!view) return;
-          redo(view);
+          focusEditor()?.commands.redo();
         },
       },
       { separator: true },
@@ -670,985 +1013,24 @@ export function Editor({
     [copySelection, cutSelection, focusEditor, pasteSelection, selectAll, t],
   );
 
-  useEffect(() => {
-    if (!editorRef.current) return;
-
-    const indentText = tabIndentText;
-    const tabSize = 4;
-    const wordSegmenter =
-      typeof Intl !== "undefined" && "Segmenter" in Intl
-        ? new Intl.Segmenter("zh-Hans", { granularity: "word" })
-        : null;
-
-    // 自定义主题
-    const theme = EditorView.theme(
-      {
-        "&": {
-          height: "100%",
-          fontSize: `${fontSize}px`,
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-        },
-        ".cm-content": {
-          fontFamily: `'${font}', 'Monaco', monospace`,
-          padding: "16px 20px",
-          caretColor: "var(--accent)",
-          lineHeight: "var(--editor-line-height, 1.6)",
-        },
-        ".cm-cursor": {
-          borderLeftColor: "var(--accent)",
-        },
-        ".cm-activeLine": {
-          backgroundColor: "rgba(255, 255, 255, 0.03)",
-        },
-
-        ".cm-selectionBackground": {
-          backgroundColor: "rgba(233, 69, 96, 0.3) !important",
-        },
-        "&.cm-focused .cm-selectionBackground": {
-          backgroundColor: "rgba(233, 69, 96, 0.3) !important",
-        },
-        ".cm-scroller": {
-          overflow: "auto",
-        },
-        // 链接样式
-        ".cm-link-url": {
-          textDecoration: "underline",
-          textDecorationColor: "var(--accent)",
-          cursor: "pointer",
-        },
-        ".cm-task-checkbox": {
-          display: "inline-flex",
-          alignItems: "center",
-          verticalAlign: "text-bottom",
-        },
-        ".cm-task-checkbox input": {
-          width: "14px",
-          height: "14px",
-          margin: "0",
-          accentColor: "var(--accent)",
-          cursor: "pointer",
-        },
-        ".cm-table-row": {
-          backgroundColor: "rgba(255, 255, 255, 0.012)",
-          borderBottom: "1px solid rgba(255, 255, 255, 0.04)",
-        },
-        ".cm-table-sep": {
-          backgroundColor: "rgba(255, 255, 255, 0.016)",
-          borderBottom: "1px solid var(--border)",
-        },
-        ".cm-table-pipe": {
-          color: "var(--text-secondary)",
-          opacity: "0.8",
-        },
-        ".cm-panel.cm-search": {
-          padding: "6px 10px 8px",
-          backgroundColor: "var(--bg-secondary)",
-          borderBottom: "1px solid var(--border)",
-        },
-        ".cm-panel.cm-search input": {
-          backgroundColor: "var(--bg-primary)",
-          color: "var(--text-primary)",
-          border: "1px solid var(--border)",
-          borderRadius: "6px",
-          padding: "4px 8px",
-          outline: "none",
-        },
-        ".cm-panel.cm-search button": {
-          backgroundColor: "var(--bg-tertiary)",
-          color: "var(--text-secondary)",
-          border: "1px solid var(--border)",
-          borderRadius: "6px",
-          padding: "4px 8px",
-          cursor: "pointer",
-        },
-        ".cm-panel.cm-search button:hover": {
-          backgroundColor: "var(--bg-hover)",
-          color: "var(--text-primary)",
-        },
-        ".cm-panel.cm-search label": {
-          color: "var(--text-secondary)",
-        },
-        ".cm-panel.cm-search [name=close]": {
-          color: "var(--text-muted)",
-        },
-        ".cm-searchMatch": {
-          backgroundColor: "rgba(59, 130, 246, 0.18)",
-          borderRadius: "2px",
-        },
-        ".cm-searchMatch-selected": {
-          backgroundColor: "rgba(59, 130, 246, 0.35)",
-        },
-        ".cm-flash-highlight": {
-          backgroundColor: "rgba(59, 130, 246, 0.35)",
-          borderRadius: "2px",
-        },
-      },
-      { dark: true },
-    );
-
-    const isFenceLine = (text: string) => text.trimStart().startsWith("```");
-
-    const buildInsideCodeBlockMap = (doc: EditorState["doc"]) => {
-      const inside = new Array<boolean>(doc.lines + 1).fill(false);
-      let inFence = false;
-      for (let lineNo = 1; lineNo <= doc.lines; lineNo++) {
-        const lineText = doc.line(lineNo).text;
-        const fence = isFenceLine(lineText);
-        if (fence) {
-          inFence = !inFence;
-          continue;
-        }
-        inside[lineNo] = inFence;
-      }
-      return inside;
-    };
-
-    const getSelectedLineRange = (
-      doc: EditorState["doc"],
-      from: number,
-      to: number,
-    ) => {
-      const start = doc.lineAt(from);
-      const end = doc.lineAt(to);
-      let endLineNo = end.number;
-      if (to === end.from && end.number > start.number) {
-        endLineNo -= 1;
-      }
-      return { startLineNo: start.number, endLineNo };
-    };
-
-    const getLineType = (lineText: string) => {
-      const ws = lineText.match(/^[\t ]*/)?.[0] ?? "";
-      const rest = lineText.slice(ws.length);
-      if (rest.startsWith(">")) return "quote" as const;
-      if (/^(\d+)\.\s+/.test(rest)) return "olist" as const;
-      if (/^[-*+]\s+\[[ xX]\]\s+/.test(rest)) return "task" as const;
-      if (/^[-*+]\s+/.test(rest)) return "ulist" as const;
-      return "text" as const;
-    };
-
-    const getOutdentChange = (lineText: string, lineFrom: number) => {
-      if (lineText.startsWith("\t")) {
-        return { from: lineFrom, to: lineFrom + 1, insert: "" };
-      }
-      const leadingSpaces = lineText.match(/^ +/)?.[0].length ?? 0;
-      if (leadingSpaces === 0) return null;
-      const removeCount =
-        indentText === "\t"
-          ? Math.min(leadingSpaces, tabSize)
-          : Math.min(leadingSpaces, indentText.length);
-      if (removeCount <= 0) return null;
-      return { from: lineFrom, to: lineFrom + removeCount, insert: "" };
-    };
-
-    const getLeadingWhitespace = (lineText: string) =>
-      lineText.match(/^[\t ]*/)?.[0] ?? "";
-
-    const getIndentColumns = (ws: string) => {
-      let columns = 0;
-      for (const ch of ws) {
-        if (ch === "\t") columns += tabSize;
-        else if (ch === " ") columns += 1;
-      }
-      return columns;
-    };
-
-    const getLineIndentDeltaColumns = (
-      lineText: string,
-      lineNo: number,
-      direction: "indent" | "outdent",
-      affectedLines: Set<number>,
-    ) => {
-      if (!affectedLines.has(lineNo)) return 0;
-
-      const lineType = getLineType(lineText);
-      if (lineType === "quote") return 0;
-
-      if (direction === "indent") {
-        return indentText === "\t" ? tabSize : Math.max(1, indentText.length);
-      }
-
-      if (lineText.startsWith("\t")) return -tabSize;
-
-      const leadingSpaces = lineText.match(/^ +/)?.[0].length ?? 0;
-      if (leadingSpaces === 0) return 0;
-      const removeCount =
-        indentText === "\t"
-          ? Math.min(leadingSpaces, tabSize)
-          : Math.min(leadingSpaces, indentText.length);
-      return -removeCount;
-    };
-
-    const getOrderedListRenumberChanges = (doc: EditorState["doc"]) => {
-      const changes: Array<{ from: number; to: number; insert: string }> = [];
-      const orderedStack: Array<{ indentColumns: number; nextNumber: number }> =
-        [];
-      let inFence = false;
-
-      const unwindForNonOrderedLine = (indentCols: number) => {
-        while (
-          orderedStack.length > 0 &&
-          indentCols <= orderedStack[orderedStack.length - 1].indentColumns
-        ) {
-          orderedStack.pop();
-        }
-      };
-
-      for (let lineNo = 1; lineNo <= doc.lines; lineNo++) {
-        const line = doc.line(lineNo);
-        const lineText = line.text;
-        const indentCols = getIndentColumns(getLeadingWhitespace(lineText));
-
-        const fence = isFenceLine(lineText);
-        if (fence) {
-          unwindForNonOrderedLine(indentCols);
-          inFence = !inFence;
-          continue;
-        }
-        if (inFence) continue;
-
-        const match = lineText.match(/^([\t ]*)(\d+)\.\s+/);
-        if (!match) {
-          unwindForNonOrderedLine(indentCols);
-          continue;
-        }
-
-        while (
-          orderedStack.length > 0 &&
-          indentCols < orderedStack[orderedStack.length - 1].indentColumns
-        ) {
-          orderedStack.pop();
-        }
-        if (
-          orderedStack.length === 0 ||
-          indentCols > orderedStack[orderedStack.length - 1].indentColumns
-        ) {
-          orderedStack.push({ indentColumns: indentCols, nextNumber: 1 });
-        }
-
-        const desiredNumber = orderedStack[orderedStack.length - 1].nextNumber;
-        orderedStack[orderedStack.length - 1].nextNumber += 1;
-
-        const currentNumber = Number(match[2]);
-        if (currentNumber === desiredNumber) continue;
-
-        const numberFrom = line.from + match[1].length;
-        const numberTo = numberFrom + match[2].length;
-        changes.push({
-          from: numberFrom,
-          to: numberTo,
-          insert: String(desiredNumber),
-        });
-      }
-
-      return changes;
-    };
-
-    const handleCodeFenceEnter = (view: EditorView) => {
-      if (!enableQuickSymbolInput) return false;
-
-      const { state } = view;
-      const range = state.selection.main;
-      if (!range.empty) return false;
-
-      const line = state.doc.lineAt(range.from);
-      if (range.from !== line.to) return false;
-
-      const trimmed = line.text.trim();
-      if (!trimmed.startsWith("```")) return false;
-      if (!/^```[^`]*$/.test(trimmed)) return false;
-
-      const ws = getLeadingWhitespace(line.text);
-      const insert = "\n" + ws + "\n" + ws + "```";
-      const cursorPos = range.from + 1 + ws.length;
-
-      view.dispatch({
-        changes: { from: range.from, insert },
-        selection: { anchor: cursorPos },
-        userEvent: "input",
-      });
-
-      return true;
-    };
-
-    const normalizeQuickSymbolMarker = (marker: string): string => {
-      if (/^＃+$/.test(marker)) {
-        return "#".repeat(marker.length);
-      }
-      if (marker === "－" || marker === "—" || marker === "–" || marker === "*")
-        return "-";
-      if (marker === "＞") return ">";
-      if (marker === "1。") return "1.";
-      return marker;
-    };
-
-    const handleQuickSymbolSpace = (view: EditorView) => {
-      if (!enableQuickSymbolInput) return false;
-      if (view.composing) return false;
-      if (isImeComposingRef.current) return false;
-      if (Date.now() - lastCompositionEndAtRef.current < 120) return false;
-
-      const { state } = view;
-      const range = state.selection.main;
-      if (!range.empty) return false;
-
-      const pos = range.from;
-      const line = state.doc.lineAt(pos);
-      const prefix = state.doc.sliceString(line.from, pos);
-
-      const match = prefix.match(
-        /^([\t ]*)(#{1,3}|＃{1,3}|>|＞|1\.|1。)$/,
-      );
-      if (!match) return false;
-
-      const indent = match[1];
-      const marker = normalizeQuickSymbolMarker(match[2]);
-
-      const indentCols = getIndentColumns(indent);
-      if ((marker.startsWith("#") || marker === ">") && indentCols > 3)
-        return false;
-
-      const insideFence = buildInsideCodeBlockMap(state.doc);
-      if (insideFence[line.number]) return false;
-
-      const replaceFrom = line.from + indent.length;
-      const insert = `${marker} `;
-
-      view.dispatch({
-        changes: { from: replaceFrom, to: pos, insert },
-        selection: { anchor: replaceFrom + insert.length },
-        userEvent: "input",
-      });
-
-      return true;
-    };
-
-    const quickSymbolKeymap = keymap.of([
-      { key: "Enter", run: handleCodeFenceEnter },
-      { key: "Space", run: handleQuickSymbolSpace },
-    ]);
-
-    const imeCompositionGuard = EditorView.domEventHandlers({
-      compositionstart: () => {
-        isImeComposingRef.current = true;
-        return false;
-      },
-      compositionend: () => {
-        isImeComposingRef.current = false;
-        lastCompositionEndAtRef.current = Date.now();
-
-        queueMicrotask(() => {
-          const currentView = viewRef.current;
-          if (!currentView) return;
-          if (currentView.composing) return;
-
-          const docText = currentView.state.doc.toString();
-          if (docText === lastEmittedContentRef.current) return;
-          lastEmittedContentRef.current = docText;
-          onChange(docText);
-          onActivity?.("typing");
-        });
-        return false;
-      },
-    });
-
-    const markdownExtension = markdown({
-      base: markdownLanguage,
-      extensions: [GFM],
-      ...(enableCodeBlockHighlight
-        ? { codeLanguages: codeFenceLanguages }
-        : {}),
-    });
-
-    const continueMarkupKeymap = keymap.of([
-      { key: "Enter", run: insertNewlineContinueMarkup },
-    ]);
-
-    const findDeleteBoundary = (
-      text: string,
-      pos: number,
-      direction: "backward" | "forward",
-    ): number => {
-      if (direction === "backward") {
-        if (pos <= 0) return 0;
-        let cursor = pos;
-        while (cursor > 0 && /\s/.test(text[cursor - 1])) cursor -= 1;
-        if (cursor !== pos) return cursor;
-
-        if (wordSegmenter) {
-          const segments = Array.from(wordSegmenter.segment(text));
-          let previousSegmentStart = 0;
-          for (const segment of segments) {
-            const start = segment.index;
-            const end = start + segment.segment.length;
-
-            if (end >= cursor) {
-              if (start < cursor && segment.isWordLike) return start;
-              return previousSegmentStart;
-            }
-
-            previousSegmentStart = start;
-          }
-        }
-
-        cursor = pos;
-        while (cursor > 0 && /[a-z0-9_]/i.test(text[cursor - 1])) cursor -= 1;
-        if (cursor !== pos) return cursor;
-
-        cursor = pos;
-        while (cursor > 0 && !/\s/.test(text[cursor - 1])) cursor -= 1;
-        return cursor;
-      }
-
-      if (pos >= text.length) return text.length;
-      let cursor = pos;
-      while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
-      if (cursor !== pos) return cursor;
-
-      if (wordSegmenter) {
-        const segments = Array.from(wordSegmenter.segment(text));
-        for (const segment of segments) {
-          const start = segment.index;
-          const end = start + segment.segment.length;
-
-          if (start > cursor) {
-            return end;
-          }
-          if (start <= cursor && end > cursor) {
-            if (segment.isWordLike) return end;
-          }
-        }
-      }
-
-      cursor = pos;
-      while (cursor < text.length && /[a-z0-9_]/i.test(text[cursor]))
-        cursor += 1;
-      if (cursor !== pos) return cursor;
-
-      cursor = pos;
-      while (cursor < text.length && !/\s/.test(text[cursor])) cursor += 1;
-      return cursor;
-    };
-
-    const wordDeleteKeymap = keymap.of([
-      {
-        key: "Ctrl-Backspace",
-        run: (view) => {
-          const range = view.state.selection.main;
-          if (!range.empty) {
-            view.dispatch({
-              changes: { from: range.from, to: range.to, insert: "" },
-              selection: { anchor: range.from },
-              userEvent: "delete",
-            });
-            return true;
-          }
-
-          const docText = view.state.doc.toString();
-          const from = findDeleteBoundary(docText, range.from, "backward");
-          if (from === range.from) return false;
-          view.dispatch({
-            changes: { from, to: range.from, insert: "" },
-            selection: { anchor: from },
-            userEvent: "delete",
-          });
-          return true;
-        },
-      },
-      {
-        key: "Ctrl-Delete",
-        run: (view) => {
-          const range = view.state.selection.main;
-          if (!range.empty) {
-            view.dispatch({
-              changes: { from: range.from, to: range.to, insert: "" },
-              selection: { anchor: range.from },
-              userEvent: "delete",
-            });
-            return true;
-          }
-
-          const docText = view.state.doc.toString();
-          const to = findDeleteBoundary(docText, range.from, "forward");
-          if (to === range.from) return false;
-          view.dispatch({
-            changes: { from: range.from, to, insert: "" },
-            selection: { anchor: range.from },
-            userEvent: "delete",
-          });
-          return true;
-        },
-      },
-    ]);
-
-    const wrapSelectionInputHandler = EditorView.inputHandler.of(
-      (view, from, to, text) => {
-        if (text.length !== 1 || !WRAP_SYMBOL_SET.has(text)) return false;
-        const range = view.state.selection.main;
-        if (range.empty || range.from !== from || range.to !== to) return false;
-
-        const selectedText = view.state.sliceDoc(from, to);
-        view.dispatch({
-          changes: { from, to, insert: `${text}${selectedText}${text}` },
-          selection: { anchor: from + 1, head: from + 1 + selectedText.length },
-          userEvent: "input",
-        });
-        return true;
-      },
-    );
-
-    const handleTabIndent = (direction: "indent" | "outdent") => {
-      const view = viewRef.current;
-      if (!view) return false;
-
-      const { state } = view;
-      const { doc } = state;
-      const insideCodeBlock = buildInsideCodeBlockMap(doc);
-
-      const affectedLines = new Set<number>();
-      const cursorInsertions: number[] = [];
-
-      for (const range of state.selection.ranges) {
-        if (range.from !== range.to) {
-          const lineRange = getSelectedLineRange(doc, range.from, range.to);
-          for (
-            let lineNo = lineRange.startLineNo;
-            lineNo <= lineRange.endLineNo;
-            lineNo++
-          ) {
-            affectedLines.add(lineNo);
-          }
-          continue;
-        }
-
-        const pos = range.from;
-        const line = doc.lineAt(pos);
-        const lineNo = line.number;
-
-        if (direction === "outdent") {
-          affectedLines.add(lineNo);
-          continue;
-        }
-
-        // indent
-        const lineText = line.text;
-        const lineType = getLineType(lineText);
-
-        // 代码块：光标处插入
-        if (insideCodeBlock[lineNo]) {
-          cursorInsertions.push(pos);
-          continue;
-        }
-
-        // 列表/引用：整行缩进
-        if (
-          lineType === "quote" ||
-          lineType === "olist" ||
-          lineType === "ulist" ||
-          lineType === "task"
-        ) {
-          affectedLines.add(lineNo);
-          continue;
-        }
-
-        // 普通文本：行首缩进整行，行中插入
-        if (pos === line.from) {
-          affectedLines.add(lineNo);
-        } else {
-          cursorInsertions.push(pos);
-        }
-      }
-
-      const changes: Array<{ from: number; to?: number; insert: string }> = [];
-
-      for (const lineNo of affectedLines) {
-        const line = doc.line(lineNo);
-        const lineText = line.text;
-        const ws = getLeadingWhitespace(lineText);
-        const wsPos = line.from + ws.length;
-
-        // fenced code block lines are treated like normal text for line-wise indent/outdent
-        const lineType = getLineType(lineText);
-
-        if (direction === "indent") {
-          if (lineType === "quote") {
-            changes.push({ from: wsPos, insert: ">" });
-          } else {
-            changes.push({ from: line.from, insert: indentText });
-          }
-          continue;
-        }
-
-        // outdent
-        if (lineType === "quote") {
-          const afterWs = lineText.slice(ws.length);
-          if (!afterWs.startsWith(">")) continue;
-
-          const quoteCount = afterWs.match(/^>+/)?.[0].length ?? 1;
-          const removeLength = quoteCount <= 1 && afterWs[1] === " " ? 2 : 1;
-          changes.push({ from: wsPos, to: wsPos + removeLength, insert: "" });
-          continue;
-        }
-
-        const outdent = getOutdentChange(lineText, line.from);
-        if (outdent) {
-          changes.push(outdent);
-        }
-      }
-
-      for (const pos of cursorInsertions) {
-        const lineNo = doc.lineAt(pos).number;
-        if (affectedLines.has(lineNo)) continue;
-
-        // 如果光标所在行也在 fenced code block 中，直接插入
-        changes.push({ from: pos, insert: indentText });
-      }
-
-      const shouldRenumberOrderedLists = Array.from(affectedLines).some(
-        (lineNo) =>
-          !insideCodeBlock[lineNo] &&
-          getLineType(doc.line(lineNo).text) === "olist",
-      );
-      if (shouldRenumberOrderedLists) {
-        const orderedStack: Array<{
-          indentColumns: number;
-          nextNumber: number;
-        }> = [];
-        let inFence = false;
-
-        const unwindForNonOrderedLine = (indentCols: number) => {
-          while (
-            orderedStack.length > 0 &&
-            indentCols <= orderedStack[orderedStack.length - 1].indentColumns
-          ) {
-            orderedStack.pop();
-          }
-        };
-
-        for (let lineNo = 1; lineNo <= doc.lines; lineNo++) {
-          const line = doc.line(lineNo);
-          const lineText = line.text;
-          const ws = getLeadingWhitespace(lineText);
-          const indentCols = Math.max(
-            0,
-            getIndentColumns(ws) +
-              getLineIndentDeltaColumns(
-                lineText,
-                lineNo,
-                direction,
-                affectedLines,
-              ),
-          );
-
-          const fence = isFenceLine(lineText);
-          if (fence) {
-            unwindForNonOrderedLine(indentCols);
-            inFence = !inFence;
-            continue;
-          }
-          if (inFence) continue;
-
-          const match = lineText.match(/^([\t ]*)(\d+)\.\s+/);
-          if (!match) {
-            unwindForNonOrderedLine(indentCols);
-            continue;
-          }
-
-          while (
-            orderedStack.length > 0 &&
-            indentCols < orderedStack[orderedStack.length - 1].indentColumns
-          ) {
-            orderedStack.pop();
-          }
-          if (
-            orderedStack.length === 0 ||
-            indentCols > orderedStack[orderedStack.length - 1].indentColumns
-          ) {
-            orderedStack.push({ indentColumns: indentCols, nextNumber: 1 });
-          }
-
-          const desiredNumber =
-            orderedStack[orderedStack.length - 1].nextNumber;
-          orderedStack[orderedStack.length - 1].nextNumber += 1;
-
-          const currentNumber = Number(match[2]);
-          if (currentNumber === desiredNumber) continue;
-
-          const numberFrom = line.from + match[1].length;
-          const numberTo = numberFrom + match[2].length;
-          changes.push({
-            from: numberFrom,
-            to: numberTo,
-            insert: String(desiredNumber),
-          });
-        }
-      }
-
-      if (changes.length === 0) return true;
-
-      changes.sort((a, b) => {
-        if (a.from !== b.from) return a.from - b.from;
-        const aTo = a.to ?? a.from;
-        const bTo = b.to ?? b.from;
-        return aTo - bTo;
-      });
-      view.dispatch({ changes });
-      return true;
-    };
-
-    // 计算功能：Ctrl+Enter 执行表达式计算
-    const calculateKeymap = keymap.of([
-      {
-        key: "Ctrl-Enter",
-        run: (view) => {
-          const state = view.state;
-          const pos = state.selection.main.head;
-          const line = state.doc.lineAt(pos);
-          const lineText = line.text;
-
-          // 查找最后一个 = 号
-          const lastEqualIndex = lineText.lastIndexOf("=");
-          if (lastEqualIndex === -1) return false;
-
-          // 获取等号前的表达式
-          const expression = lineText.substring(0, lastEqualIndex).trim();
-          if (!expression) return false;
-
-          try {
-            // 使用 mathjs 计算
-            const result = evaluate(expression);
-            const resultStr = result.toString();
-
-            // 检查等号后是否有空格，保留空格
-            const afterEqual = lineText.substring(lastEqualIndex + 1);
-            const leadingSpaces = afterEqual.match(/^(\s*)/)?.[1] || "";
-
-            // 计算插入位置（等号后 + 空格后）
-            const insertPos =
-              line.from + lastEqualIndex + 1 + leadingSpaces.length;
-
-            // 计算结果的最终位置
-            const newCursorPos = insertPos + resultStr.length;
-
-            // 替换等号后的内容（保留空格）
-            view.dispatch({
-              changes: {
-                from: insertPos,
-                to: line.to,
-                insert: resultStr,
-              },
-              // 将光标移到结果末尾
-              selection: { anchor: newCursorPos },
-            });
-            return true;
-          } catch {
-            // 计算失败，不做任何操作
-            return false;
-          }
-        },
-      },
-    ]);
-
-    const tabIndentKeymap = keymap.of([
-      { key: "Tab", run: () => handleTabIndent("indent") },
-      { key: "Shift-Tab", run: () => handleTabIndent("outdent") },
-    ]);
-
-    const startState = EditorState.create({
-      doc: content,
-      extensions: [
-        // 计算功能键盘映射放最前面，确保优先级
-        calculateKeymap,
-        tabIndentKeymap,
-        wordDeleteKeymap,
-        ...(enableQuickSymbolInput ? [quickSymbolKeymap] : []),
-        continueMarkupKeymap,
-        imeCompositionGuard,
-        wrapSelectionInputHandler,
-        EditorState.tabSize.of(tabSize),
-        indentUnit.of(indentText),
-        markdownExtension,
-        syntaxHighlighting(defaultHighlightStyle),
-
-        highlightActiveLine(),
-        history(),
-        highlightSelectionMatches(),
-        keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
-        flashHighlightField,
-        theme,
-        EditorView.updateListener.of((update) => {
-          if (!update.docChanged || isExternalUpdate.current) return;
-          if (update.view.composing || isImeComposingRef.current) return;
-
-          const hasInsertedNewline = (tx: Transaction) => {
-            let found = false;
-            tx.changes.iterChanges((_fromA, _toA, _fromB, _toB, inserted) => {
-              if (found) return;
-              if (inserted.length > 0 && inserted.toString().includes("\n"))
-                found = true;
-            });
-            return found;
-          };
-
-          const hasRemovedNewline = (tx: Transaction) => {
-            let found = false;
-            const oldDoc = tx.startState.doc;
-            tx.changes.iterChanges((fromA, toA) => {
-              if (found) return;
-              if (fromA === toA) return;
-              if (oldDoc.sliceString(fromA, toA).includes("\n")) found = true;
-            });
-            return found;
-          };
-
-          if (!isAutoRenumbering.current) {
-            const shouldTriggerRenumber = update.transactions.some((tx) => {
-              const isRelevantInput =
-                tx.isUserEvent("input") &&
-                !tx.isUserEvent("input.paste") &&
-                !tx.isUserEvent("input.drop");
-              const isRelevantDelete = tx.isUserEvent("delete");
-              return (
-                (isRelevantInput && hasInsertedNewline(tx)) ||
-                (isRelevantDelete && hasRemovedNewline(tx))
-              );
-            });
-
-            if (shouldTriggerRenumber) {
-              const cursorLineText = update.state.doc.lineAt(
-                update.state.selection.main.head,
-              ).text;
-              if (/^[\t ]*\d+\.\s+/.test(cursorLineText)) {
-                const renumberChanges = getOrderedListRenumberChanges(
-                  update.state.doc,
-                );
-                if (renumberChanges.length > 0) {
-                  renumberChanges.sort((a, b) => {
-                    if (a.from !== b.from) return a.from - b.from;
-                    return a.to - b.to;
-                  });
-
-                  isAutoRenumbering.current = true;
-                  update.view.dispatch({
-                    changes: renumberChanges,
-                    annotations: Transaction.addToHistory.of(false),
-                  });
-                  isAutoRenumbering.current = false;
-                  return;
-                }
-              }
-            }
-          }
-
-          const docText = update.state.doc.toString();
-          lastEmittedContentRef.current = docText;
-          onChange(docText);
-          onActivity?.("typing");
-        }),
-        EditorView.lineWrapping,
-        // 链接识别和 Ctrl+Click 打开
-        linkPlugin,
-        linkClickHandler,
-        // 图片拖放/粘贴和预览
-        imageHandler,
-        imagePreviewPlugin,
-        tableBorderPlugin,
-        taskListPlugin,
-      ],
-    });
-
-    const view = new EditorView({
-      state: startState,
-      parent: editorRef.current,
-    });
-
-    viewRef.current = view;
-
-    if (autoFocus) {
-      view.focus();
-    }
-
-    return () => {
-      view.destroy();
-    };
-  }, []);
-
-  // 外部内容更新时同步到编辑器
-  useEffect(() => {
-    const view = viewRef.current;
-    if (!view) return;
-
-    if (content !== view.state.doc.toString()) {
-      if (view.hasFocus) return;
-      if (view.composing || isImeComposingRef.current) return;
-
-      isExternalUpdate.current = true;
-      view.dispatch({
-        changes: {
-          from: 0,
-          to: view.state.doc.length,
-          insert: content,
-        },
-      });
-      isExternalUpdate.current = false;
-      lastEmittedContentRef.current = content;
-    }
-  }, [content]);
-
-  useEffect(() => {
-    return () => {
-      if (flashTimeoutRef.current !== null) {
-        window.clearTimeout(flashTimeoutRef.current);
-        flashTimeoutRef.current = null;
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!jumpTo) return;
-
-    const view = viewRef.current;
-    if (!view) return;
-
-    const docLen = view.state.doc.length;
-    const from = Math.max(0, Math.min(jumpTo.from, docLen));
-    const to = Math.max(from, Math.min(jumpTo.to, docLen));
-
-    flashTokenRef.current = jumpTo.token;
-    if (flashTimeoutRef.current !== null) {
-      window.clearTimeout(flashTimeoutRef.current);
-      flashTimeoutRef.current = null;
-    }
-
-    view.dispatch({
-      selection: { anchor: from },
-      effects: [
-        EditorView.scrollIntoView(from, { y: "center" }),
-        setFlashHighlightEffect.of({ from, to }),
-      ],
-    });
-
-    view.focus();
-
-    flashTimeoutRef.current = window.setTimeout(() => {
-      if (flashTokenRef.current !== jumpTo.token) return;
-      const v = viewRef.current;
-      if (!v) return;
-      v.dispatch({ effects: clearFlashHighlightEffect.of(null) });
-    }, 1000);
-
-    onJumpApplied?.(jumpTo.token);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jumpTo?.token]);
+  const editorStyle = useMemo(
+    () =>
+      ({
+        "--editor-font": `'${font}', 'Monaco', monospace`,
+        "--editor-font-size": `${fontSize}px`,
+      }) as CSSProperties,
+    [font, fontSize],
+  );
 
   return (
     <>
       <div
-        ref={editorRef}
-        className="editor-container"
+        className="editor-container tiptap-editor-shell"
+        style={editorStyle}
         onContextMenu={handleEditorContextMenu}
-      />
+      >
+        <EditorContent editor={editor} className="tiptap-editor-content" />
+      </div>
       {editorContextMenu.visible && (
         <ContextMenu
           x={editorContextMenu.x}
