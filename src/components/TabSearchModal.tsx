@@ -60,6 +60,7 @@ export function TabSearchModal({
 }: TabSearchModalProps) {
     const { t } = useTranslation()
     const [activeTab, setActiveTab] = useState<ModalTab>(defaultTab)
+    const [backupExpanded, setBackupExpanded] = useState(() => defaultTab !== 'active')
     const [query, setQuery] = useState('')
     const [debouncedQuery, setDebouncedQuery] = useState('')
     const [selectedIndex, setSelectedIndex] = useState(0)
@@ -74,6 +75,7 @@ export function TabSearchModal({
     useEffect(() => {
         if (isOpen) {
             setActiveTab(defaultTab)
+            setBackupExpanded(defaultTab !== 'active')
             setQuery('')
             setDebouncedQuery('')
             setSelectedIndex(0)
@@ -344,23 +346,49 @@ export function TabSearchModal({
                             className={`search-tab ${activeTab === 'active' ? 'active' : ''}`}
                             onClick={() => setActiveTab('active')}
                         >
-                            {t('search.activeTabs')}
-                            <span className="search-tab-count">{tabs.length}</span>
+                            <span className="search-tab-text">{t('search.activeTabs')}</span>
+                            <span className="search-tab-meta">
+                                <span className="search-tab-count">{tabs.length}</span>
+                            </span>
                         </button>
                         <button
-                            className={`search-tab ${activeTab === 'archived' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('archived')}
+                            className={`search-tab search-tab-backup ${backupExpanded ? 'expanded' : ''} ${activeTab !== 'active' ? 'active-parent' : ''}`}
+                            onClick={() => {
+                                setBackupExpanded((prev) => {
+                                    const next = !prev
+                                    if (!next && activeTab !== 'active') setActiveTab('active')
+                                    return next
+                                })
+                            }}
                         >
-                            {t('search.archivedTabs')}
-                            <span className="search-tab-count">{archivedTabs.length}</span>
+                            <span className="search-tab-text">{t('search.backupList')}</span>
+                            <span className="search-tab-meta">
+                                <span className="search-tab-count">{archivedTabs.length + closedTabs.length}</span>
+                                <span className={`search-tab-chevron ${backupExpanded ? 'expanded' : ''}`} aria-hidden="true" />
+                            </span>
                         </button>
-                        <button
-                            className={`search-tab ${activeTab === 'closed' ? 'active' : ''}`}
-                            onClick={() => setActiveTab('closed')}
-                        >
-                            {t('search.closedTabs')}
-                            <span className="search-tab-count">{closedTabs.length}</span>
-                        </button>
+                        {backupExpanded && (
+                            <div className="search-tab-children">
+                                <button
+                                    className={`search-tab search-tab-child ${activeTab === 'archived' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('archived')}
+                                >
+                                    <span className="search-tab-text">{t('search.archivedTabs')}</span>
+                                    <span className="search-tab-meta">
+                                        <span className="search-tab-count">{archivedTabs.length}</span>
+                                    </span>
+                                </button>
+                                <button
+                                    className={`search-tab search-tab-child ${activeTab === 'closed' ? 'active' : ''}`}
+                                    onClick={() => setActiveTab('closed')}
+                                >
+                                    <span className="search-tab-text">{t('search.closedTabs')}</span>
+                                    <span className="search-tab-meta">
+                                        <span className="search-tab-count">{closedTabs.length}</span>
+                                    </span>
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* 搜索框 */}

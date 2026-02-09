@@ -25,16 +25,16 @@
 /* Tab 切换 */
 .search-tabs {
     display: flex;
-    padding: 8px 8px 0;
+    flex-direction: column;
+    padding: 8px;
     gap: 4px;
     background: var(--bg-tertiary);
 }
 
 .search-tab {
-    flex: 1;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     gap: 6px;
     padding: 10px 12px;
     font-size: 13px;
@@ -42,7 +42,7 @@
     color: var(--text-secondary);
     background: transparent;
     border: none;
-    border-radius: 8px 8px 0 0;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s ease;
 }
@@ -52,9 +52,53 @@
     background: var(--bg-hover);
 }
 
-.search-tab.active {
+.search-tab.active,
+.search-tab.active-parent {
     color: var(--text-primary);
     background: var(--bg-secondary);
+}
+
+.search-tab-text {
+    flex: 1;
+    min-width: 0;
+    text-align: left;
+}
+
+.search-tab-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+.search-tab-chevron {
+    width: 12px;
+    height: 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: transform 0.15s ease;
+}
+
+.search-tab-chevron::before {
+    content: ">";
+}
+
+.search-tab-chevron.expanded {
+    transform: rotate(90deg);
+}
+
+.search-tab-children {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-left: 14px;
+}
+
+.search-tab.search-tab-child {
+    padding: 8px 10px;
+    font-size: 12px;
 }
 
 .search-tab-count {
@@ -67,6 +111,11 @@
 }
 
 .search-tab.active .search-tab-count {
+    color: var(--accent);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.search-tab.active-parent .search-tab-count {
     color: var(--accent);
     background: rgba(59, 130, 246, 0.1);
 }

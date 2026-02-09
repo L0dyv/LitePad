@@ -169,6 +169,7 @@
     "placeholder": "Search by keyword...",
     "noResults": "No matching tabs found",
     "activeTabs": "Open",
+    "backupList": "Backups",
     "archivedTabs": "Archived",
     "closedTabs": "Trash",
     "navigate": "Navigate",
