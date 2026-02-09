@@ -799,19 +799,18 @@ function App() {
   // 标签页拖拽重新排序
   const handleTabReorder = useCallback((fromIndex: number, toIndex: number) => {
     setData((prev) => {
-      if (fromIndex === toIndex) return prev;
       if (
         fromIndex < 0 ||
         toIndex < 0 ||
         fromIndex >= prev.tabs.length ||
-        toIndex >= prev.tabs.length
+        toIndex > prev.tabs.length
       ) {
         return prev;
       }
 
       const pinnedCount = prev.tabs.filter((t) => !!t.pinned).length;
       const fromPinned = !!prev.tabs[fromIndex]?.pinned;
-      const valid = fromPinned ? toIndex < pinnedCount : toIndex >= pinnedCount;
+      const valid = fromPinned ? toIndex <= pinnedCount : toIndex >= pinnedCount;
       if (!valid) return prev;
 
       const newTabs = [...prev.tabs];
@@ -821,6 +820,7 @@ function App() {
         0,
         Math.min(adjustedToIndex, newTabs.length),
       );
+      if (finalToIndex === fromIndex) return prev;
       newTabs.splice(finalToIndex, 0, movedTab);
 
       const now = Date.now();

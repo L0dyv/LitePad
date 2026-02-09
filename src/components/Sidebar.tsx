@@ -36,6 +36,15 @@ interface ContextMenuState {
   tabId: string | null;
 }
 
+interface DragPreviewState {
+  title: string;
+  pinned: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 // 加载保存的宽度
 function loadSidebarWidth(): number {
   try {
@@ -88,6 +97,7 @@ export function Sidebar({
   });
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [dragPreview, setDragPreview] = useState<DragPreviewState | null>(null);
   const [width, setWidth] = useState(() => loadSidebarWidth());
   const [isResizing, setIsResizing] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -221,23 +231,61 @@ export function Sidebar({
     startX: number;
     startY: number;
     dragging: boolean;
+    captureEl: HTMLElement | null;
+    previewOffsetX: number;
+    previewOffsetY: number;
+    previewWidth: number;
+    previewHeight: number;
   } | null>(null);
   const ignoreClickRef = useRef(false);
 
   const isValidDropTarget = (fromIndex: number, toIndex: number) => {
     const pinnedCount = tabs.filter((t) => !!t.pinned).length;
     const fromPinned = !!tabs[fromIndex]?.pinned;
-    return fromPinned ? toIndex < pinnedCount : toIndex >= pinnedCount;
+    if (toIndex < 0 || toIndex > tabs.length) return false;
+    return fromPinned ? toIndex <= pinnedCount : toIndex >= pinnedCount;
   };
 
-  const getTabIndexFromPoint = (x: number, y: number): number | null => {
+  const getInsertionIndexFromPoint = (x: number, y: number): number | null => {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
     const tabEl = el?.closest<HTMLElement>(".sidebar-tab");
-    const rawIndex = tabEl?.dataset.index;
-    if (!rawIndex) return null;
-    const idx = Number(rawIndex);
-    if (!Number.isInteger(idx)) return null;
-    return idx;
+    if (tabEl?.dataset.index) {
+      const idx = Number(tabEl.dataset.index);
+      if (!Number.isInteger(idx)) return null;
+      const rect = tabEl.getBoundingClientRect();
+      const after = y > rect.top + rect.height / 2;
+      return idx + (after ? 1 : 0);
+    }
+
+    const scrollEl = tabsScrollRef.current;
+    if (!scrollEl) return null;
+
+    const scrollRect = scrollEl.getBoundingClientRect();
+    if (
+      x < scrollRect.left ||
+      x > scrollRect.right ||
+      y < scrollRect.top ||
+      y > scrollRect.bottom
+    ) {
+      return null;
+    }
+
+    const visibleTabs = scrollEl.querySelectorAll<HTMLElement>(".sidebar-tab");
+    if (visibleTabs.length === 0) return 0;
+
+    const first = visibleTabs[0];
+    const last = visibleTabs[visibleTabs.length - 1];
+    const firstIndex = Number(first.dataset.index ?? "0");
+    const lastIndex = Number(last.dataset.index ?? `${tabs.length - 1}`);
+    if (!Number.isInteger(firstIndex) || !Number.isInteger(lastIndex)) return null;
+
+    const firstRect = first.getBoundingClientRect();
+    if (y < firstRect.top) return firstIndex;
+
+    const lastRect = last.getBoundingClientRect();
+    if (y > lastRect.bottom) return Math.min(tabs.length, lastIndex + 1);
+
+    return null;
   };
 
   const handleTabPointerDown = (
@@ -248,15 +296,22 @@ export function Sidebar({
     if (editingId) return;
     if (e.button !== 0) return;
 
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
     pointerDragRef.current = {
       pointerId: e.pointerId,
       fromIndex: index,
       startX: e.clientX,
       startY: e.clientY,
       dragging: false,
+      captureEl: target,
+      previewOffsetX: e.clientX - rect.left,
+      previewOffsetY: e.clientY - rect.top,
+      previewWidth: rect.width,
+      previewHeight: rect.height,
     };
 
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    target.setPointerCapture(e.pointerId);
   };
 
   const handleTabPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -272,12 +327,38 @@ export function Sidebar({
       if (Math.abs(dx) < threshold && Math.abs(dy) < threshold) return;
       drag.dragging = true;
       setDraggedIndex(drag.fromIndex);
+
+      const tab = tabs[drag.fromIndex];
+      if (tab) {
+        setDragPreview({
+          title: tab.title,
+          pinned: !!tab.pinned,
+          width: drag.previewWidth,
+          height: drag.previewHeight,
+          x: e.clientX - drag.previewOffsetX,
+          y: e.clientY - drag.previewOffsetY,
+        });
+      }
     }
 
     e.preventDefault();
 
-    const overIndex = getTabIndexFromPoint(e.clientX, e.clientY);
-    if (overIndex === null || overIndex === drag.fromIndex) {
+    setDragPreview((prev) =>
+      prev
+        ? {
+            ...prev,
+            x: e.clientX - drag.previewOffsetX,
+            y: e.clientY - drag.previewOffsetY,
+          }
+        : prev,
+    );
+
+    const overIndex = getInsertionIndexFromPoint(e.clientX, e.clientY);
+    if (
+      overIndex === null ||
+      overIndex === drag.fromIndex ||
+      overIndex === drag.fromIndex + 1
+    ) {
       setDragOverIndex(null);
       return;
     }
@@ -309,6 +390,7 @@ export function Sidebar({
     if (!drag.dragging) {
       setDraggedIndex(null);
       setDragOverIndex(null);
+      setDragPreview(null);
       return;
     }
 
@@ -318,10 +400,11 @@ export function Sidebar({
     }, 0);
 
     if (!options.canceled && onTabReorder) {
-      const toIndex = getTabIndexFromPoint(e.clientX, e.clientY);
+      const toIndex = getInsertionIndexFromPoint(e.clientX, e.clientY);
       if (
         toIndex !== null &&
         toIndex !== drag.fromIndex &&
+        toIndex !== drag.fromIndex + 1 &&
         isValidDropTarget(drag.fromIndex, toIndex)
       ) {
         onTabReorder(drag.fromIndex, toIndex);
@@ -330,7 +413,34 @@ export function Sidebar({
 
     setDraggedIndex(null);
     setDragOverIndex(null);
+    setDragPreview(null);
   };
+
+  const cancelPointerDrag = useCallback(() => {
+    const drag = pointerDragRef.current;
+    if (!drag) return;
+    try {
+      drag.captureEl?.releasePointerCapture(drag.pointerId);
+    } catch {
+      // ignore
+    }
+    pointerDragRef.current = null;
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+    setDragPreview(null);
+  }, []);
+
+  useEffect(() => {
+    if (draggedIndex === null) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      cancelPointerDrag();
+    };
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () =>
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+  }, [cancelPointerDrag, draggedIndex]);
 
   const getContextMenuItems = (): MenuItem[] => {
     const tabId = contextMenu.tabId;
@@ -416,57 +526,62 @@ export function Sidebar({
               : windowIndex;
 
             return (
-            <div
-              key={tab.id}
-              className={`sidebar-tab ${tab.pinned ? "pinned" : ""} ${tab.id === activeTabId ? "active" : ""}${draggedIndex === index ? " dragging" : ""}${dragOverIndex === index ? " drag-over" : ""}`}
-              data-index={index}
-              onClick={() => {
-                if (ignoreClickRef.current) return;
-                if (editingId !== tab.id) onTabClick(tab.id);
-              }}
-              onDoubleClick={() => handleDoubleClick(tab)}
-              onContextMenu={(e) => handleContextMenu(e, tab.id)}
-              onPointerDown={(e) => handleTabPointerDown(e, index)}
-              onPointerMove={handleTabPointerMove}
-              onPointerUp={(e) => endPointerDrag(e, { canceled: false })}
-              onPointerCancel={(e) => endPointerDrag(e, { canceled: true })}
-            >
               <div
-                className={`sidebar-tab-label ${editingId === tab.id ? "editing" : ""}`}
+                key={tab.id}
+                className={`sidebar-tab ${tab.pinned ? "pinned" : ""} ${tab.id === activeTabId ? "active" : ""}${draggedIndex === index ? " dragging" : ""}${dragOverIndex === index ? " drag-over" : ""}`}
+                data-index={index}
+                onClick={() => {
+                  if (ignoreClickRef.current) return;
+                  if (editingId !== tab.id) onTabClick(tab.id);
+                }}
+                onDoubleClick={() => handleDoubleClick(tab)}
+                onContextMenu={(e) => handleContextMenu(e, tab.id)}
+                onPointerDown={(e) => handleTabPointerDown(e, index)}
+                onPointerMove={handleTabPointerMove}
+                onPointerUp={(e) => endPointerDrag(e, { canceled: false })}
+                onPointerCancel={(e) => endPointerDrag(e, { canceled: true })}
               >
-                <span
-                  className={`sidebar-tab-pin ${tab.pinned ? "visible" : ""}`}
-                  aria-label={tab.pinned ? t("tabBar.pin") : undefined}
+                <div
+                  className={`sidebar-tab-label ${editingId === tab.id ? "editing" : ""}`}
                 >
-                  {tab.pinned && <MapPin size={12} strokeWidth={2} />}
-                </span>
-                {editingId === tab.id ? (
-                  <input
-                    ref={inputRef}
-                    className="sidebar-rename-input"
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(e, tab.id)}
-                    onBlur={() => handleRenameConfirm(tab.id)}
-                    onClick={(e) => e.stopPropagation()}
+                  <span
+                    className={`sidebar-tab-pin ${tab.pinned ? "visible" : ""}`}
+                    aria-label={tab.pinned ? t("tabBar.pin") : undefined}
+                  >
+                    {tab.pinned && <MapPin size={12} strokeWidth={2} />}
+                  </span>
+                  {editingId === tab.id ? (
+                    <input
+                      ref={inputRef}
+                      className="sidebar-rename-input"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(e, tab.id)}
+                      onBlur={() => handleRenameConfirm(tab.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onPointerDown={(e) => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span className="sidebar-tab-title">{tab.title}</span>
+                  )}
+                </div>
+                {tabs.length > 1 && editingId !== tab.id && !tab.pinned && (
+                  <button
+                    className="sidebar-tab-close"
+                    onClick={(e) => handleClose(e, tab.id)}
                     onPointerDown={(e) => e.stopPropagation()}
-                  />
-                ) : (
-                  <span className="sidebar-tab-title">{tab.title}</span>
+                  >
+                    ×
+                  </button>
                 )}
               </div>
-              {tabs.length > 1 && editingId !== tab.id && !tab.pinned && (
-                <button
-                  className="sidebar-tab-close"
-                  onClick={(e) => handleClose(e, tab.id)}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  ×
-                </button>
-              )}
-            </div>
             );
           })}
+          {shouldVirtualizeTabs &&
+            dragOverIndex === virtualTabs.endIndex + 1 &&
+            dragOverIndex !== tabs.length && (
+              <div className="sidebar-drop-end-indicator" aria-hidden="true" />
+            )}
           {shouldVirtualizeTabs && virtualTabs.bottomSpacerHeight > 0 && (
             <div
               aria-hidden="true"
@@ -475,6 +590,9 @@ export function Sidebar({
                 pointerEvents: "none",
               }}
             />
+          )}
+          {dragOverIndex === tabs.length && (
+            <div className="sidebar-drop-end-indicator" aria-hidden="true" />
           )}
         </div>
         <div className="sidebar-footer">
@@ -505,6 +623,26 @@ export function Sidebar({
           onMouseDown={handleResizeMouseDown}
         />
       </aside>
+      {dragPreview && (
+        <div
+          className="sidebar-tab-drag-preview"
+          style={{
+            width: `${dragPreview.width}px`,
+            height: `${dragPreview.height}px`,
+            transform: `translate3d(${dragPreview.x}px, ${dragPreview.y}px, 0)`,
+          }}
+          aria-hidden="true"
+        >
+          <div className="sidebar-tab-label">
+            <span
+              className={`sidebar-tab-pin ${dragPreview.pinned ? "visible" : ""}`}
+            >
+              {dragPreview.pinned && <MapPin size={12} strokeWidth={2} />}
+            </span>
+            <span className="sidebar-tab-title">{dragPreview.title}</span>
+          </div>
+        </div>
+      )}
       {contextMenu.visible && (
         <ContextMenu
           x={contextMenu.x}

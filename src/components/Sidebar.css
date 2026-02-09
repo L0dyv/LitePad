@@ -100,6 +100,33 @@
     padding-top: 6px;
 }
 
+.sidebar-drop-end-indicator {
+    height: 10px;
+    margin: 0 8px;
+    border-top: 2px solid var(--accent);
+}
+
+.sidebar-tab-drag-preview {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 9999;
+    pointer-events: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+    opacity: 0.95;
+}
+
+.sidebar-tab-drag-preview .sidebar-tab-title {
+    color: var(--text-primary);
+}
+
 .sidebar-tab-title {
     flex: 1;
     font-size: 13px;
