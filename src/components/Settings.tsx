@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Github, Info } from 'lucide-react'
-import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize, loadEditorTabIndentText, saveEditorTabIndentText, loadEditorLineHeight, saveEditorLineHeight, loadEditorCodeBlockHighlight, saveEditorCodeBlockHighlight, loadEditorQuickSymbolInput, saveEditorQuickSymbolInput } from '../utils/storage'
+import { loadShortcuts, saveShortcuts, ShortcutSettings, DEFAULT_SHORTCUTS, loadFont, saveFont, loadEditorFont, saveEditorFont, loadEditorFontSize, saveEditorFontSize, loadEditorTabIndentText, saveEditorTabIndentText, loadEditorLineHeight, saveEditorLineHeight, loadEditorCodeBlockHighlight, saveEditorCodeBlockHighlight, loadEditorQuickSymbolInput, saveEditorQuickSymbolInput, TabSortMode } from '../utils/storage'
 import { changeLanguage, getCurrentLanguage } from '../i18n/i18n'
 import { tauriAPI, BackupSettings, BackupInfo, PathValidationResult, UpdateInfo } from '../lib/tauri-api'
 import packageJson from '../../package.json'
@@ -45,6 +45,8 @@ interface SettingsProps {
     zenHideStatsCapsule?: boolean
     onZenHideStatsCapsuleChange?: (hidden: boolean) => void
     onBackupSettingsChange?: (settings: BackupSettings) => void
+    tabSortMode?: TabSortMode
+    onTabSortModeChange?: (mode: TabSortMode) => void
 }
 
 // 将键盘事件转换为快捷键字符串
@@ -71,7 +73,7 @@ function eventToShortcut(e: KeyboardEvent): string | null {
     return parts.join('+')
 }
 
-export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onEditorTabIndentTextChange, onEditorLineHeightChange, onEditorCodeBlockHighlightChange, onEditorQuickSymbolInputChange, onLanguageChange, zenModeEnabled, onZenModeChange, zenHideStatsCapsule, onZenHideStatsCapsuleChange, onBackupSettingsChange }: SettingsProps) {
+export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFontChange, onEditorFontChange, onEditorFontSizeChange, onEditorTabIndentTextChange, onEditorLineHeightChange, onEditorCodeBlockHighlightChange, onEditorQuickSymbolInputChange, onLanguageChange, zenModeEnabled, onZenModeChange, zenHideStatsCapsule, onZenHideStatsCapsuleChange, onBackupSettingsChange, tabSortMode, onTabSortModeChange }: SettingsProps) {
     const { t } = useTranslation()
     const [autoLaunch, setAutoLaunch] = useState(false)
     const [alwaysOnTop, setAlwaysOnTop] = useState(false)
@@ -706,6 +708,24 @@ export function Settings({ isOpen, onClose, onOpenHelp, onShortcutsChange, onFon
                                 disabled={!(zenModeEnabled ?? true)}
                                 onChange={(e) => onZenHideStatsCapsuleChange?.(e.target.checked)}
                             />
+                        </label>
+                    </div>
+                    <div className="settings-section">
+                        <h3>{t('settings.tabs')}</h3>
+                        <label className="settings-item">
+                            <span>{t('settings.tabSortMode')}</span>
+                            <select
+                                value={tabSortMode ?? 'manual'}
+                                onChange={(e) => {
+                                    const value = e.target.value === 'updatedAt' ? 'updatedAt' : 'manual'
+                                    onTabSortModeChange?.(value)
+                                }}
+                                className="settings-select"
+                                disabled={!onTabSortModeChange}
+                            >
+                                <option value="manual">{t('tabBar.sortManual')}</option>
+                                <option value="updatedAt">{t('tabBar.sortLastEdited')}</option>
+                            </select>
                         </label>
                     </div>
                     <div className="settings-section">

@@ -1045,6 +1045,8 @@ function App() {
           });
         }}
         onBackupSettingsChange={setBackupSettings}
+        tabSortMode={tabSortMode}
+        onTabSortModeChange={handleTabSortModeChange}
       />
       <TabSearchModal
         isOpen={showSearch}
