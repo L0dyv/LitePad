@@ -51,13 +51,13 @@
 
 .editor-container .tiptap-editor-content {
     height: 100%;
+    overflow: auto;
 }
 
 .editor-container .tiptap-editor-content .ProseMirror {
-    height: 100%;
-    overflow: auto;
     box-sizing: border-box;
-    padding: 16px 20px;
+    min-height: 100%;
+    padding: 16px 20px calc(16px + 40vh);
     outline: none;
     white-space: pre-wrap;
     word-break: break-word;
@@ -71,6 +71,21 @@
 
 .editor-container .tiptap-editor-content .ProseMirror p {
     margin: 0 0 0.5em;
+}
+
+.editor-container .tiptap-editor-content .ProseMirror ol,
+.editor-container .tiptap-editor-content .ProseMirror ul {
+    list-style-position: outside;
+    padding-left: 1.6em;
+    margin: 0 0 0.6em;
+}
+
+.editor-container .tiptap-editor-content .ProseMirror li {
+    margin: 0.15em 0;
+}
+
+.editor-container .tiptap-editor-content .ProseMirror li > p {
+    margin: 0;
 }
 
 .editor-container .tiptap-editor-content .ProseMirror a {
